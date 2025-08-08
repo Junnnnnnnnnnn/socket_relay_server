@@ -20,8 +20,18 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "paths": {
-      "@app/slack": ["libs/slack/src"],
-      "@app/slack/*": ["libs/slack/src/*"]
+      "@app/slack": [
+        "libs/slack/src"
+      ],
+      "@app/slack/*": [
+        "libs/slack/src/*"
+      ],
+      "@app/socket": [
+        "libs/socket/src"
+      ],
+      "@app/socket/*": [
+        "libs/socket/src/*"
+      ]
     }
   }
 }
