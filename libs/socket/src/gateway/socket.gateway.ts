@@ -9,11 +9,13 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { SocketMessageName } from './socket.enum';
+import { SocketMessageName } from '../socket.enum';
 
-@WebSocketGateway({ cors: { origin: '*' } })
+@WebSocketGateway({ namespace: '/default', cors: { origin: '*' } })
 @Injectable()
-export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class DefaultSocketGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer() private readonly server: Server;
 
   handleConnection(client: Socket) {
@@ -76,6 +78,7 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     client.join(room);
     client.emit('joinedRoom', room);
+
     console.log(`ClientId: ${client.id} Sent to room: ${room}`);
   }
 }

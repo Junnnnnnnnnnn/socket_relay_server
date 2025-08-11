@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { SocketGateway } from './socket.gateway';
+import { DefaultSocketGateway } from './gateway/socket.gateway';
 
 @Module({
-  providers: [SocketGateway],
-  exports: [SocketGateway],
+  providers: [DefaultSocketGateway],
+  exports: [DefaultSocketGateway],
 })
 export class SocketModule {}
