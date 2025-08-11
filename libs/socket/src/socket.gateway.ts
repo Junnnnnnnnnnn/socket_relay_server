@@ -14,15 +14,14 @@ import { SocketMessageName } from './socket.enum';
 @WebSocketGateway({ cors: { origin: '*' } })
 @Injectable()
 export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  private readonly logger: Logger;
   @WebSocketServer() private readonly server: Server;
 
   handleConnection(client: Socket) {
     const room = client.handshake.query.room as string;
 
-    this.logger.log(`Client connected ${client.id} room: ${room}`);
+    console.log(`Client connected ${client.id} room: ${room}`);
 
-    client.join(room);
+    if (room) client.join(room);
   }
 
   handleDisconnect(client: Socket) {
@@ -30,9 +29,9 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (room) {
       client.leave(room);
-      this.logger.log(`Client ${client.id} disconnected from room ${room}`);
+      console.log(`Client ${client.id} disconnected from room ${room}`);
     } else {
-      this.logger.log(`Client ${client.id} disconnected (no room info)`);
+      console.log(`Client ${client.id} disconnected (no room info)`);
     }
   }
 
@@ -52,13 +51,13 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody('count') count: number,
   ): void {
-    this.logger.log(`Message received: ${count}`);
+    console.log(`Message received: ${count}`);
 
     const room = client.handshake.query.room as string;
 
     this.server.to(room).emit(SocketMessageName.COUNT, count);
 
-    this.logger.log(`Sent to room: ${room}, data: ${count}`);
+    console.log(`Sent to room: ${room}, data: ${count}`);
   }
 
   /**
@@ -77,5 +76,6 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     client.join(room);
     client.emit('joinedRoom', room);
+    console.log(`ClientId: ${client.id} Sent to room: ${room}`);
   }
 }

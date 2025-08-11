@@ -16,6 +16,7 @@ export class SocketConnectorService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     this.connect();
   }
+
   onModuleDestroy() {
     if (this.client) {
       this.client.disconnect();
