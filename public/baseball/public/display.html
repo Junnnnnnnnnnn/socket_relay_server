@@ -1,0 +1,422 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Baseball – Display (Perspective)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Socket.IO & QRCode -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --fg: #e8f0ff;
+      --muted: #9fb0d8;
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, Segoe UI, Apple SD Gothic Neo, sans-serif;
+      overflow: hidden
+    }
+
+    /* Header */
+    .hdr {
+      position: fixed;
+      left: 20px;
+      top: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      z-index: 5
+    }
+
+    .card {
+      background: #121a35;
+      border: 1px solid #243157;
+      border-radius: 16px;
+      padding: 12px 16px
+    }
+
+    #qr {
+      background: #0a1430;
+      padding: 8px;
+      border-radius: 12px
+    }
+
+    #room {
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: 1px
+    }
+
+    .note {
+      font-size: 12px;
+      opacity: .8
+    }
+
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 0;
+      background: #4dabf7;
+      color: #0b1020;
+      font-weight: 700;
+      cursor: pointer
+    }
+
+    .btn.stop {
+      background: #ff6b6b;
+      color: #0b1020
+    }
+
+    .btn:disabled {
+      opacity: .5;
+      cursor: not-allowed
+    }
+
+    /* Field */
+    .field {
+      position: absolute;
+      inset: 0;
+      height: 100%;
+      perspective: 1100px;
+      perspective-origin: 50% 65%;
+      background: url("https://static-dev.zipshowkorea.com/baseball/public/static/BASEBALL_BG.png") center/cover no-repeat;
+    }
+
+    /* Ball */
+    .ball {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      transform-style: preserve-3d;
+      background: radial-gradient(circle at 35% 35%, #ffffff, #e8e8e8 60%, #cfcfcf);
+      box-shadow: 0 10px 18px rgba(0, 0, 0, .35);
+      will-change: transform, filter;
+    }
+
+    .ball .stitch {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 35% 50%, #c73b3b 2px, transparent 2px) 2px 8px/8px 8px,
+        radial-gradient(circle at 65% 50%, #c73b3b 2px, transparent 2px) 2px 8px/8px 8px;
+      mix-blend-mode: multiply;
+      opacity: .75;
+      animation: spin 600ms linear infinite;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg)
+      }
+
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    /* Scoreboard */
+    .score {
+      position: fixed;
+      right: 20px;
+      top: 20px;
+      z-index: 5;
+      background: #121a35;
+      border: 1px solid #243157;
+      border-radius: 16px;
+      padding: 12px 16px;
+      min-width: 200px;
+    }
+
+    .score .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px
+    }
+
+    .chip {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .08);
+      font-size: 12px
+    }
+
+    .state {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      background: #121a35;
+      border: 1px solid #243157;
+      border-radius: 12px;
+      padding: 10px 12px;
+      opacity: .9
+    }
+  </style>
+</head>
+
+<body>
+  <div class="field" id="field">
+    <div class="plate"></div>
+    <div class="plateLine"></div>
+    <div class="labelPlate">PLATE</div>
+  </div>
+
+  <div class="hdr">
+    <div class="card">Room: <span id="room"></span></div>
+    <div id="qr" class="card"></div>
+    <div class="card">
+      <div class="note" id="joinLink"></div>
+      <div style="margin-top:6px; display:flex; gap:8px; align-items:center">
+        <button id="startBtn" class="btn">Start</button>
+        <button id="stopBtn" class="btn stop">Stop</button>
+        <span id="status" class="note">Waiting…</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="score">
+    <div class="row">
+      <div><span style="opacity:.7">Batter</span> <span id="batterName" class="chip">-</span></div>
+      <div><span style="opacity:.7">Score</span> <span id="batterScore" class="chip">0</span></div>
+    </div>
+    <div id="hint" class="state">Early→LEFT · Perfect→CENTER · Late→RIGHT</div>
+  </div>
+
+  <div class="toast" id="toast">대기중…</div>
+
+  <script>
+    // ===== Room / QR =====
+    function rndRoom() {
+      const s = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      return Array.from({
+        length: 4
+      }, () => s[Math.random() * s.length | 0]).join("")
+    }
+    const url = new URL(location.href);
+    const room = (url.searchParams.get("room") || rndRoom()).toUpperCase();
+    history.replaceState({}, "", `?room=${room}`);
+    document.getElementById("room").textContent = room;
+
+    const controllerUrl = `${location.origin}/baseball/public/controller.html?room=${encodeURIComponent(room)}`;
+    document.getElementById("joinLink").textContent = controllerUrl;
+    new QRCode(document.getElementById("qr"), {
+      text: controllerUrl,
+      width: 120,
+      height: 120
+    });
+
+    // ===== Socket =====
+    const socket = io('your-socket-server', {
+      path: '/socket',
+      query: {
+        role: 'display',
+        room
+      },
+      transports: ['websocket'],
+      reconnection: true,
+    });
+
+    const field = document.getElementById('field');
+    const statusEl = document.getElementById('status');
+    const toastEl = document.getElementById('toast');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const batterNameEl = document.getElementById('batterName');
+    const batterScoreEl = document.getElementById('batterScore');
+
+    // ===== 3D params =====
+    const Z_FAR = -900,
+      Z_NEAR = 0;
+    const Y_START = -22,
+      Y_PLATE = 18;
+    const BALL_S0 = 0.55,
+      BALL_S1 = 1.8;
+
+    // ✅ 속도/도착 타이밍 조절 (원하는 만큼 올려서 "느리게")
+    const PITCH_SLOW_FACTOR = 1.35; // 기존보다 35% 느리게
+    const PLATE_EXTRA_DELAY_MS = 160; // 도착을 추가로 '조금' 늦춤
+
+    const balls = new Map();
+
+    socket.on('connect', () => {
+      toast(`Connected (#${socket.id})`);
+      statusEl.textContent = `Display connected. Room ${room}`;
+    });
+    socket.on('connect_error', e => toast(`Connect error: ${e.message}`));
+
+    startBtn.onclick = () => socket.emit('startGame');
+    stopBtn.onclick = () => socket.emit('stopGame');
+
+    socket.on('gameStarted', () => {
+      statusEl.textContent = 'Game running…';
+      toast('Play ball!');
+      for (const b of balls.values()) try {
+        field.removeChild(b.el)
+      } catch {};
+      balls.clear();
+    });
+    socket.on('gameOver', ({
+      reason
+    }) => {
+      statusEl.textContent = `Stopped ${reason?`(${reason})`:''}`;
+      toast('Game stopped');
+      for (const b of balls.values()) try {
+        field.removeChild(b.el)
+      } catch {};
+      balls.clear();
+    });
+
+    socket.on('stateUpdate', state => {
+      if (state.batter) {
+        batterNameEl.textContent = state.batter.name || 'Batter';
+        batterScoreEl.textContent = String(state.batter.score ?? 0);
+      } else batterNameEl.textContent = '-';
+    });
+
+    // ===== Ball lifecycle =====
+    socket.on('ballSpawn', ({
+      ballId,
+      fallMs
+    }) => {
+      spawnBall3D(ballId, fallMs || 1600);
+    });
+
+    socket.on('hit', ({
+      ballId,
+      outcome,
+      power = 0.8,
+      timingMs
+    }) => {
+      const b = balls.get(ballId);
+      if (!b) return;
+      flyOut3D(b, outcome, power);
+      toast(`${outcome.toUpperCase()} (${timingMs}ms)`);
+    });
+
+    socket.on('miss', ({
+      ballId
+    }) => {
+      const b = balls.get(ballId);
+      if (!b) return;
+      missDrop(b);
+      toast(`MISS`);
+    });
+
+    socket.on('ballExpired', ({
+      ballId
+    }) => {
+      const b = balls.get(ballId);
+      if (!b) return;
+      try {
+        field.removeChild(b.el)
+      } catch {};
+      balls.delete(ballId);
+    });
+
+    // ===== 3D helpers =====
+    function spawnBall3D(ballId, duration) {
+      const el = document.createElement('div');
+      el.className = 'ball';
+      const st = document.createElement('div');
+      st.className = 'stitch';
+      el.appendChild(st);
+
+      const laneX = (Math.random() * 14 - 7);
+      const wobbleX = (Math.random() * 6 - 3);
+
+      el.style.transform = `translate3d(${laneX}vw, ${Y_START}vh, ${Z_FAR}px) scale(${BALL_S0})`;
+      el.style.filter = 'blur(0.6px)';
+      field.appendChild(el);
+
+      // ⏱️ 느리게 + 플레이트 도착 추가 지연
+      const base = duration || 1600;
+      const D = Math.max(700, Math.round(base * PITCH_SLOW_FACTOR) + PLATE_EXTRA_DELAY_MS);
+
+      requestAnimationFrame(() => {
+        void el.offsetHeight;
+        el.style.transition = `transform ${D}ms cubic-bezier(.15,.95,.2,1), filter ${D}ms linear`;
+        el.style.transform = `translate3d(${laneX + wobbleX/3}vw, ${Y_PLATE}vh, ${Z_NEAR}px) scale(${BALL_S1})`;
+        el.style.filter = 'blur(1.6px)';
+      });
+
+      balls.set(ballId, {
+        el,
+        state: 'approach',
+        laneX
+      });
+    }
+
+    function flyOut3D(b, outcome, power) {
+      if (!b || b.state === 'done') return;
+      b.state = 'done';
+      const el = b.el;
+
+      const baseX = outcome === 'left' ? -38 : outcome === 'right' ? 38 : 0;
+      const liftY = -46 - Math.random() * 6;
+      const farZ = -1200 - Math.round((power || 0.8) * 400);
+      const shrink = 0.25 + (0.15 * (1 - (power || 0.8)));
+
+      const end = `translate3d(${baseX}vw, ${liftY}vh, ${farZ}px) scale(${shrink})`;
+
+      const D = 900 + Math.round((1 - (power || 0.8)) * 500);
+      el.style.transition = `transform ${D}ms cubic-bezier(.12,.8,.12,1), filter ${D}ms linear, opacity ${D}ms linear`;
+      el.style.transform = end;
+      el.style.filter = 'blur(2px)';
+      el.style.opacity = 0.9;
+
+      setTimeout(() => {
+        try {
+          field.removeChild(el)
+        } catch {}
+      }, D + 80);
+    }
+
+    function missDrop(b) {
+      if (!b || b.state === 'done') return;
+      b.state = 'done';
+      const el = b.el;
+      const end = `translate3d(6vw, 44vh, -120px) scale(1.2)`;
+      el.style.transition = `transform 320ms ease-in, opacity 320ms linear`;
+      el.style.transform = end;
+      el.style.opacity = .75;
+      setTimeout(() => {
+        try {
+          field.removeChild(el)
+        } catch {}
+      }, 380);
+    }
+
+    function toast(msg) {
+      toastEl.textContent = msg;
+      toastEl.style.opacity = 1;
+      clearTimeout(window._t1);
+      window._t1 = setTimeout(() => {
+        toastEl.style.opacity = .0
+      }, 1500);
+    }
+  </script>
+</body>
+
+</html>

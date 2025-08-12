@@ -1,0 +1,376 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Climb Game – Display</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Socket.IO & QRCode -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --fg: #e8f0ff;
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, Segoe UI, Apple SD Gothic Neo, sans-serif;
+      overflow: hidden
+    }
+
+    .hdr {
+      position: fixed;
+      left: 20px;
+      top: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      z-index: 5
+    }
+
+    .card {
+      background: #121a35;
+      border: 1px solid #243157;
+      border-radius: 16px;
+      padding: 12px 16px
+    }
+
+    #qr {
+      background: #0a1430;
+      padding: 8px;
+      border-radius: 12px
+    }
+
+    #room {
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: 1px
+    }
+
+    .note {
+      font-size: 12px;
+      opacity: .8
+    }
+
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 0;
+      background: #4dabf7;
+      color: #0b1020;
+      font-weight: 700;
+      cursor: pointer
+    }
+
+    .btn:disabled {
+      opacity: .5;
+      cursor: not-allowed
+    }
+
+    #canvas {
+      position: fixed;
+      inset: 0;
+      display: block
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      background: #121a35;
+      border: 1px solid #243157;
+      border-radius: 12px;
+      padding: 10px 12px;
+      opacity: .9
+    }
+
+    /* ==== TRACK LAYOUT (fixed heights so % works) ==== */
+    .lanes {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      padding: 24px;
+      align-items: stretch;
+      /* was 'end' — must be 'stretch' */
+      pointer-events: none;
+      height: 100%;
+      /* ensure container has a height */
+    }
+
+    .lane {
+      position: relative;
+      background: #111a33;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #22325a;
+      height: 100%;
+      /* children % -> lane height */
+    }
+
+    .finish {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      font-size: 12px;
+      opacity: .7
+    }
+
+    /* Graph fill (from bottom) */
+    .fill {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 0%;
+      transition: height 120ms linear;
+      background: rgba(77, 171, 247, .22);
+      /* overwritten per player */
+      backdrop-filter: blur(0.5px);
+    }
+
+    /* Runner (circle) */
+    .runner {
+      position: absolute;
+      left: 50%;
+      transform: translate(-50%, 0);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+      bottom: 0;
+      display: grid;
+      place-items: center;
+      color: #0b1020;
+      font-weight: 700;
+      transition: bottom 100ms linear;
+      border: 2px solid rgba(255, 255, 255, .15);
+    }
+
+    /* Labels */
+    .label {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 8px;
+      font-size: 12px;
+      color: #cfe0ff;
+      opacity: .9;
+      pointer-events: none;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
+    }
+
+    .pct {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      font-size: 12px;
+      opacity: .75;
+      background: rgba(0, 0, 0, .25);
+      padding: 3px 6px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div class="hdr">
+    <div class="card">Room: <span id="room"></span></div>
+    <div id="qr" class="card"></div>
+    <div class="card">
+      <div class="note" id="joinLink"></div>
+      <button id="startBtn" class="btn" style="margin-top:6px">Start Game</button>
+      <span id="status" class="note" style="margin-left:8px">Waiting…</span>
+    </div>
+  </div>
+
+  <div class="lanes" id="lanes"></div>
+
+  <div class="toast" id="toast">대기중…</div>
+
+  <script>
+    // ===== Room =====
+    function rndRoom() {
+      const s = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      return Array.from({
+        length: 4
+      }, () => s[Math.floor(Math.random() * s.length)]).join("");
+    }
+    const url = new URL(location.href);
+    const room = (url.searchParams.get("room") || rndRoom()).toUpperCase();
+    history.replaceState({}, "", `?room=${room}`);
+    document.getElementById("room").textContent = room;
+
+    // ===== QR =====
+    const controllerUrl = `${location.origin}/climb/public/controller.html?room=${encodeURIComponent(room)}`;
+    document.getElementById("joinLink").textContent = controllerUrl;
+    new QRCode(document.getElementById("qr"), {
+      text: controllerUrl,
+      width: 120,
+      height: 120
+    });
+
+    // ===== Socket =====
+    const socket = io('your-socket-server', {
+      path: '/socket',
+      query: {
+        role: 'display',
+        room
+      },
+      transports: ['websocket'],
+      reconnection: true,
+    });
+
+    const statusEl = document.getElementById('status');
+    const toastEl = document.getElementById('toast');
+    const startBtn = document.getElementById('startBtn');
+    const lanesEl = document.getElementById('lanes');
+
+    const players = new Map(); // id -> { lane, fill, runner, label, pct, color, name }
+
+    socket.on('connect', () => {
+      toast(`Connected (#${socket.id})`);
+      statusEl.textContent = `Display connected. Room ${room}`;
+    });
+    socket.on('connect_error', (e) => toast(`Connect error: ${e.message}`));
+
+    socket.on('stateUpdate', (state) => {
+      statusEl.textContent = `${state.players.length} player(s) | ${state.status}`;
+
+      if (lanesEl.children.length !== state.players.length) {
+        lanesEl.innerHTML = '';
+        players.clear();
+      }
+      state.players.forEach(upsertRunner);
+    });
+
+    socket.on('gameStarted', () => {
+      statusEl.textContent = 'Game running…';
+      startBtn.disabled = true;
+    });
+
+    socket.on('gameOver', ({
+      winnerId,
+      snapshot
+    }) => {
+      const winner = snapshot.players.find(p => p.id === winnerId);
+      statusEl.textContent = winner ? `Winner: ${winner.name}` : 'Game stopped';
+      startBtn.disabled = false;
+    });
+
+    socket.on('error', (e) => {
+      statusEl.textContent = `Error: ${e.message || e}`;
+    });
+
+    startBtn.onclick = () => socket.emit('startGame');
+
+    // ===== Utils =====
+    function toast(msg) {
+      toastEl.textContent = msg;
+      toastEl.style.opacity = 1;
+      clearTimeout(window._t1);
+      window._t1 = setTimeout(() => {
+        toastEl.style.opacity = .0;
+      }, 1800);
+    }
+
+    function hexToRGBA(hex, a) {
+      const s = hex.replace('#', '');
+      const bigint = parseInt(s.length === 3 ? s.split('').map(c => c + c).join('') : s, 16);
+      const r = (bigint >> 16) & 255,
+        g = (bigint >> 8) & 255,
+        b = bigint & 255;
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    // ===== UI =====
+    function upsertRunner(p) {
+      let row = players.get(p.id);
+      if (!row) {
+        const lane = document.createElement('div');
+        lane.className = 'lane';
+
+        const finish = document.createElement('div');
+        finish.className = 'finish';
+        finish.textContent = 'FINISH';
+        lane.appendChild(finish);
+
+        const fill = document.createElement('div');
+        fill.className = 'fill';
+        fill.style.background = `linear-gradient(to top, ${hexToRGBA(p.color, .55)}, ${hexToRGBA(p.color, .22)})`;
+        lane.appendChild(fill);
+
+        const runner = document.createElement('div');
+        runner.className = 'runner';
+        runner.style.background = p.color;
+        runner.textContent = (p.name || '').slice(0, 3).toUpperCase();
+        lane.appendChild(runner);
+
+        const pct = document.createElement('div');
+        pct.className = 'pct';
+        pct.textContent = '0%';
+        lane.appendChild(pct);
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = p.name || '';
+        lane.appendChild(label);
+
+        lanesEl.appendChild(lane);
+        row = {
+          lane,
+          fill,
+          runner,
+          label,
+          pct,
+          color: p.color,
+          name: p.name
+        };
+        players.set(p.id, row);
+      }
+
+      // progress: accept 0..100 or 0..1
+      const raw = Number(p.progress) || 0;
+      const h = raw <= 1 ? raw * 100 : raw;
+
+      const clamped = Math.max(0, Math.min(100, h));
+      row.fill.style.height = `${clamped}%`;
+      row.runner.style.bottom = `${clamped}%`;
+      row.pct.textContent = `${Math.round(clamped)}%`;
+    }
+
+    // ===== Background (optional) =====
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+      canvas.width = innerWidth;
+      canvas.height = innerHeight;
+      drawBg();
+    }
+    addEventListener('resize', resize);
+    resize();
+
+    function drawBg() {
+      const g = ctx.createRadialGradient(canvas.width * .5, canvas.height * .5, 50, canvas.width * .5, canvas.height * .5, Math.max(canvas.width, canvas.height) * .7);
+      g.addColorStop(0, '#0d1535');
+      g.addColorStop(1, '#050814');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  </script>
+</body>
+
+</html>

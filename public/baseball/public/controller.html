@@ -1,0 +1,414 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Baseball – Controller</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --fg: #e8f0ff;
+      --card: #111a33;
+      --muted: #8aa0c7;
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, Apple SD Gothic Neo, sans-serif;
+      display: grid;
+      place-items: center
+    }
+
+    .wrap {
+      width: min(560px, 92vw);
+      display: grid;
+      gap: 12px
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #22325a;
+      border-radius: 16px;
+      padding: 14px
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap
+    }
+
+    input,
+    button {
+      font-size: 16px;
+      border-radius: 12px;
+      border: 1px solid #2a3a66;
+      background: #0a1430;
+      color: var(--fg);
+      padding: 12px
+    }
+
+    button.primary {
+      background: #51cf66;
+      border-color: #51cf66;
+      color: #0b1020;
+      font-weight: 700
+    }
+
+    button.warn {
+      background: #2a71ff;
+      border-color: #2a71ff;
+      font-weight: 700
+    }
+
+    button.ghost {
+      background: #111a33;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px
+    }
+
+    .big {
+      font-size: 22px;
+      font-weight: 700
+    }
+
+    .status {
+      min-height: 20px
+    }
+
+    .meter {
+      height: 14px;
+      border-radius: 8px;
+      background: #111a33;
+      overflow: hidden
+    }
+
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: #4dabf7;
+      transition: width 80ms linear;
+    }
+
+    .target {
+      height: 8px;
+      border-radius: 999px;
+      background: #2a3a66;
+      overflow: hidden
+    }
+
+    .target .tbar {
+      height: 100%;
+      width: 0%;
+      background: #ffd43b;
+      transition: width 50ms linear;
+    }
+
+    .swingBtn {
+      width: 100%;
+      padding: 18px;
+      border-radius: 14px;
+      border: 0;
+      background: #ffd43b;
+      color: #0b1020;
+      font-weight: 800;
+      font-size: 18px
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <div class="big">Baseball Controller</div>
+      </div>
+      <div class="row">
+        <label>Room</label>
+        <input id="room" style="flex:1" />
+        <input id="name" placeholder="닉네임" style="flex:1" />
+      </div>
+      <div class="row">
+        <button id="perm" class="warn">모션 권한</button>
+        <button id="join" class="ghost">Join</button>
+        <button id="start" class="primary" style="flex:1" disabled>Start Motion</button>
+        <button id="stop" class="ghost" style="flex:1" disabled>Stop</button>
+      </div>
+
+      <!-- 다음 공까지 카운트다운(감각용) -->
+      <div class="muted">Next ball ETA</div>
+      <div class="target">
+        <div id="tbar" class="tbar"></div>
+      </div>
+
+      <!-- 스윙 파워 피드백 -->
+      <div class="muted" style="margin-top:10px">Swing power</div>
+      <div class="meter">
+        <div id="bar" class="bar"></div>
+      </div>
+
+      <!-- 수동 스윙 버튼(테스트/대안) -->
+      <div style="margin-top:10px">
+        <button id="swing" class="swingBtn">SWING (tap)</button>
+      </div>
+
+      <div class="status" id="status">대기중…</div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Config =====
+    const SOCKET_URL = 'your-socket-server';
+    const SOCKET_PATH = '/socket';
+
+    // ===== Elements =====
+    const roomInput = document.getElementById("room");
+    const nameInput = document.getElementById("name");
+    const statusEl = document.getElementById("status");
+    const btnPerm = document.getElementById("perm");
+    const btnJoin = document.getElementById("join");
+    const btnStart = document.getElementById("start");
+    const btnStop = document.getElementById("stop");
+    const bar = document.getElementById("bar");
+    const tbar = document.getElementById("tbar");
+    const btnSwing = document.getElementById("swing");
+
+    // ===== Room from QR =====
+    const url = new URL(location.href);
+    const roomFromQR = (url.searchParams.get("room") || "DEMO").toUpperCase();
+    roomInput.value = roomFromQR;
+    if (roomFromQR) roomInput.readOnly = true;
+    nameInput.value = "Batter" + Math.floor(Math.random() * 1000);
+
+    const room = () => (roomInput.value || 'DEMO').toUpperCase();
+    const playerName = () => (nameInput.value || 'Batter').slice(0, 16);
+    const setStatus = (t) => statusEl.textContent = t;
+
+    // ===== Socket =====
+    const socket = io(SOCKET_URL, {
+      path: SOCKET_PATH,
+      query: {
+        role: 'controller',
+        room: room()
+      },
+      transports: ['websocket'],
+      reconnection: true,
+    });
+
+    socket.on('connect', () => {
+      setStatus(`소켓 연결됨 (#${socket.id}). 방에 Join 하세요.`);
+      btnJoin.disabled = false;
+    });
+    socket.on('connect_error', (e) => setStatus(`연결 실패: ${e.message}`));
+
+    // Join / Leave
+    btnJoin.onclick = () => {
+      socket.emit('joinRoom', {
+        room: room(),
+        name: playerName()
+      });
+      setStatus('Join 요청 전송…');
+    };
+
+    socket.on('joinedRoom', () => {
+      setStatus('Joined. Ready to start motion.');
+      btnStart.disabled = false;
+    });
+    socket.on('batterReady', ({
+      name
+    }) => {
+      setStatus(`${name} ready`);
+    });
+    socket.on('batterLeft', () => {
+      setStatus('Batter left. Join again if needed.');
+      stopMotion();
+      btnStart.disabled = true;
+      btnStop.disabled = true;
+    });
+
+    // Errors
+    socket.on('error', (e) => {
+      setStatus(`Error: ${e.message || e}`);
+    });
+
+    // ===== Ball tracking =====
+    let currentBallId = null;
+    let lastSpawnAt = 0,
+      lastFallMs = 0;
+    let etaTimer = null;
+
+    socket.on('ballSpawn', ({
+      ballId,
+      fallMs,
+      spawnAt
+    }) => {
+      currentBallId = ballId;
+      lastSpawnAt = spawnAt || Date.now();
+      lastFallMs = fallMs || 1600;
+      startETA();
+    });
+
+    socket.on('hit', ({
+      ballId
+    }) => {
+      if (ballId === currentBallId) {
+        currentBallId = null;
+        stopETA();
+      }
+    });
+    socket.on('miss', ({
+      ballId
+    }) => {
+      if (ballId === currentBallId) {
+        currentBallId = null;
+        stopETA();
+      }
+    });
+    socket.on('ballExpired', ({
+      ballId
+    }) => {
+      if (ballId === currentBallId) {
+        currentBallId = null;
+        stopETA();
+      }
+    });
+
+    function startETA() {
+      stopETA();
+      tickETA();
+      etaTimer = setInterval(tickETA, 50);
+    }
+
+    function stopETA() {
+      if (etaTimer) clearInterval(etaTimer), etaTimer = null;
+      tbar.style.width = '0%';
+    }
+
+    function tickETA() {
+      const now = Date.now();
+      const total = lastFallMs;
+      const elapsed = Math.max(0, now - lastSpawnAt);
+      const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
+      tbar.style.width = `${pct}%`; // 0..100%
+    }
+
+    // ===== Motion detection =====
+    btnPerm.onclick = async () => {
+      try {
+        if (typeof DeviceMotionEvent !== 'undefined' &&
+          typeof DeviceMotionEvent.requestPermission === 'function') {
+          const r = await DeviceMotionEvent.requestPermission();
+          if (r !== 'granted') return alert('모션 권한 거부됨');
+        }
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+          await DeviceOrientationEvent.requestPermission().catch(() => {});
+        }
+        alert('모션 권한 OK');
+      } catch (e) {
+        alert('권한 요청 오류: ' + e.message);
+      }
+    };
+
+    const MAG_THRESH = 12; // 충분히 강한 스윙
+    const JERK_THRESH = 6; // 순간 변화량
+    const SWING_COOLDOWN_MS = 350;
+
+    let enabled = false;
+    let prevMag = 0;
+    let lastSwingAt = 0;
+
+    btnStart.onclick = () => {
+      startMotion();
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+    };
+    btnStop.onclick = () => {
+      stopMotion();
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      bar.style.width = '0%';
+    };
+
+    function startMotion() {
+      if (enabled) return;
+      enabled = true;
+      setStatus('Motion streaming… Swing when ball is near the plate.');
+      window.addEventListener('devicemotion', onMotion, {
+        passive: true
+      });
+    }
+
+    function stopMotion() {
+      if (!enabled) return;
+      enabled = false;
+      setStatus('대기중');
+      window.removeEventListener('devicemotion', onMotion);
+    }
+
+    function onMotion(e) {
+      const ag = e.accelerationIncludingGravity || {
+        x: 0,
+        y: 0,
+        z: 0
+      };
+      const a = e.acceleration || ag;
+      const mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+      const jerk = mag - prevMag;
+      prevMag = mag;
+
+      // UI power bar (not exact power)
+      const uiVal = Math.max(0, Math.min(100, (jerk > 0 ? jerk * 12 : 0)));
+      bar.style.width = uiVal + '%';
+
+      // Detect swing
+      const now = Date.now();
+      if (now - lastSwingAt < SWING_COOLDOWN_MS) return;
+
+      const strong = mag > MAG_THRESH;
+      const quick = jerk > JERK_THRESH;
+
+      if (strong && quick) {
+        lastSwingAt = now;
+        const power = Math.max(0.3, Math.min(1.0, (mag - MAG_THRESH) / 10 + 0.5));
+        swingNow(power);
+      }
+    }
+
+    // Manual fallback swing
+    btnSwing.onclick = () => swingNow(0.8);
+
+    function swingNow(power) {
+      if (!currentBallId) {
+        setStatus('No active ball yet…');
+        return;
+      }
+      socket.emit('swing', {
+        ballId: currentBallId,
+        power: Number(power) || 0.8
+      });
+      // prevent double-send for same ball
+      currentBallId = null;
+      stopETA();
+    }
+
+    // cleanup
+    window.addEventListener('pagehide', stopMotion);
+    window.addEventListener('beforeunload', stopMotion);
+  </script>
+</body>
+
+</html>

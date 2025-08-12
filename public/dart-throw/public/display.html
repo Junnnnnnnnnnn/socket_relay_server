@@ -1,0 +1,454 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Dart Board – Display</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --fg: #e8f0ff;
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, Segoe UI, Apple SD Gothic Neo, sans-serif;
+      overflow: hidden
+    }
+
+    .hud {
+      position: fixed;
+      left: 20px;
+      top: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center
+    }
+
+    .card {
+      background: #121a35;
+      border: 1px solid #243157;
+      border-radius: 16px;
+      padding: 12px 16px
+    }
+
+    #qr {
+      background: #0a1430;
+      padding: 8px;
+      border-radius: 12px
+    }
+
+    #room {
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: 1px
+    }
+
+    #canvas {
+      position: fixed;
+      inset: 0;
+      display: block
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      background: #121a35;
+      border: 1px solid #243157;
+      border-radius: 12px;
+      padding: 10px 12px;
+      opacity: .9
+    }
+  </style>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div class="hud">
+    <div class="card">Room: <span id="room"></span></div>
+    <div id="qr" class="card"></div>
+    <div class="card">스캔▶ 폰 컨트롤러 접속</div>
+  </div>
+  <div class="toast" id="toast">대기중…</div>
+
+  <script>
+    // ---- 방 코드 ----
+    function rndRoom() {
+      const s = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      return Array.from({
+        length: 4
+      }, () => s[Math.floor(Math.random() * s.length)]).join("");
+    }
+    const url = new URL(location.href);
+    const room = url.searchParams.get("room") || rndRoom();
+    history.replaceState({}, "", `?room=${room}`);
+    document.getElementById("room").textContent = room;
+
+    // ---- QR (컨트롤러 진입 링크) ----
+    const controllerUrl = `${location.origin}/dart-throw/public/controller.html?room=${encodeURIComponent(room)}`;
+    new QRCode(document.getElementById("qr"), {
+      text: controllerUrl,
+      width: 120,
+      height: 120
+    });
+
+    // ---- Socket (도메인 + /socket 경로 프록시) ----
+    const socket = io("your-socket-server", {
+      path: "/socket",
+      query: {
+        room
+      },
+      transports: ["websocket"],
+      reconnection: true,
+    });
+    socket.on("connect", () => {
+      toast(`소켓 연결됨 (#${socket.id})`);
+      socket.emit("joinRoom", {
+        room
+      });
+    });
+    socket.on("connect_error", (err) => toast(`연결 실패: ${err.message}`));
+
+    // ---- Canvas 세팅 ----
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    function center() {
+      return {
+        x: canvas.width * 0.5,
+        y: canvas.height * 0.52
+      };
+    }
+    let darts = []; // 진행중 애니메이션
+    const aims = new Map(); // name -> { tx, ty, sx, sy, skin, ts }
+
+    function resize() {
+      canvas.width = innerWidth;
+      canvas.height = innerHeight;
+      drawBoard();
+    }
+    addEventListener("resize", resize);
+    resize();
+
+    // ---- 다트판 그리기 & 스코어 계산 ----
+    function drawBoard() {
+      const {
+        x: cx,
+        y: cy
+      } = center();
+      const R = Math.min(canvas.width, canvas.height) * 0.38;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const g = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 1.2);
+      g.addColorStop(0, "#0d1535");
+      g.addColorStop(1, "#050814");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ring(R, "#1f2a4d");
+      ring(R * 0.95, "#0a6b2f", R * 0.88, "#0f8a3e");
+      ring(R * 0.85, "#111827", R * 0.60, "#0b1227");
+      ring(R * 0.58, "#0a6b2f", R * 0.50, "#0f8a3e");
+      ring(R * 0.48, "#111827", R * 0.10, "#0b1227");
+      ring(R * 0.09, "#b41d2d", R * 0.04, "#b41d2d");
+      circle(R * 0.035, "#d2e500");
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.strokeStyle = "#223260";
+      for (let i = 0; i < 20; i++) {
+        ctx.rotate(Math.PI * 2 / 20);
+        ctx.beginPath();
+        ctx.moveTo(0, -R * 0.98);
+        ctx.lineTo(0, -R * 0.50);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, -R * 0.48);
+        ctx.lineTo(0, -R * 0.10);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      function ring(rOuter, colorOuter, rInner = null, colorInner = null) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, rOuter, 0, Math.PI * 2);
+        ctx.fillStyle = colorOuter;
+        ctx.fill();
+        if (rInner) {
+          ctx.globalCompositeOperation = "destination-out";
+          ctx.beginPath();
+          ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalCompositeOperation = "source-over";
+          if (colorInner) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
+            ctx.fillStyle = colorInner;
+            ctx.fill();
+          }
+        }
+      }
+
+      function circle(r, color) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+    }
+
+    function scoreAt(x, y) {
+      const {
+        x: cx,
+        y: cy
+      } = center();
+      const dx = x - cx,
+        dy = y - cy;
+      const dist = Math.hypot(dx, dy);
+      const R = Math.min(canvas.width, canvas.height) * 0.38;
+
+      if (dist <= R * 0.035) return {
+        label: "Bull (50)",
+        value: 50
+      };
+      if (dist <= R * 0.09) return {
+        label: "Outer Bull (25)",
+        value: 25
+      };
+      if (dist >= R * 0.95) return {
+        label: "Miss (0)",
+        value: 0
+      };
+
+      const angle = Math.atan2(dy, dx);
+      const sector = (((Math.PI - angle) / (Math.PI * 2)) * 20) | 0;
+      const base = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5][sector % 20];
+
+      if (dist > R * 0.88 && dist < R * 0.95) return {
+        label: `Double ${base}`,
+        value: base * 2
+      };
+      if (dist > R * 0.50 && dist < R * 0.58) return {
+        label: `Triple ${base}`,
+        value: base * 3
+      };
+      return {
+        label: `Single ${base}`,
+        value: base
+      };
+    }
+
+    // ---- 다트 & 크로스헤어 렌더 ----
+    function animate() {
+      requestAnimationFrame(animate);
+      drawBoard();
+
+      // 진행 중 다트
+      for (const d of darts) {
+        d.t = Math.min(1, (performance.now() - d.start) / d.dur);
+        const e = easeOutCubic(d.t);
+        const x = d.sx + (d.tx - d.sx) * e;
+        const y = d.sy + (d.ty - d.sy) * e - (1 - e) * 60;
+
+        drawDart(x, y, d.skin);
+
+        if (d.t >= 1 && !d.scored) {
+          d.scored = true;
+          const s = scoreAt(d.tx, d.ty);
+          toast(`${d.name} → ${s.label} (+${s.value})`);
+        }
+      }
+      darts = darts.filter(d => performance.now() - d.start < d.dur + 1200);
+
+      // 조준 크로스헤어
+      drawAllCrosshairs();
+    }
+    requestAnimationFrame(animate);
+
+    function drawDart(x, y, skin) {
+      const sz = 26;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(-Math.PI / 2);
+      // 깃털
+      ctx.fillStyle = skin === "red" ? "#ff4d4d" : skin === "blue" ? "#4da3ff" : "#ffd24d";
+      ctx.fillRect(-sz * 0.6, -sz * 0.20, sz * 0.35, sz * 0.40);
+      // 몸체
+      ctx.fillStyle = "#cbd5e1";
+      ctx.fillRect(-sz * 0.2, -5, sz * 0.9, 10);
+      // 팁
+      ctx.fillStyle = "#e2e8f0";
+      ctx.beginPath();
+      ctx.moveTo(sz * 0.7, 0);
+      ctx.lineTo(sz * 1.05, -2);
+      ctx.lineTo(sz * 1.05, 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function toast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.style.opacity = 1;
+      clearTimeout(window._t1);
+      window._t1 = setTimeout(() => {
+        el.style.opacity = .0;
+      }, 1800);
+    }
+
+    // ---- 소켓 수신: 던지기 ----
+    socket.on("dart-thrown", ({
+      room: r,
+      name,
+      skin,
+      aim,
+      power
+    }) => {
+      if (r !== room) return;
+
+      const {
+        x: cx,
+        y: cy
+      } = center();
+      const R = Math.min(canvas.width, canvas.height) * 0.38;
+
+      const spread = (1 - Math.max(0, Math.min(1, power))) * 0.25;
+      const rx = (aim.x + (Math.random() * 2 - 1) * spread) * R * 0.95;
+      const ry = (aim.y + (Math.random() * 2 - 1) * spread) * R * 0.95;
+
+      const target = {
+        x: cx + rx,
+        y: cy + ry
+      };
+      const startY = -80;
+      darts.push({
+        name,
+        skin,
+        sx: target.x + (Math.random() * 120 - 60),
+        sy: startY,
+        tx: target.x,
+        ty: target.y,
+        start: performance.now(),
+        dur: 600 + (1 - power) * 300,
+        t: 0,
+        scored: false,
+      });
+    });
+
+    // ---- 소켓 수신: 에임 업데이트 / 오프 ----
+    socket.on('aim-update', ({
+      room: r,
+      name,
+      skin,
+      aim
+    }) => {
+      if (r !== room) return;
+      const {
+        x: cx,
+        y: cy
+      } = center();
+      const R = Math.min(canvas.width, canvas.height) * 0.38;
+
+      // -1..1 → 보드 좌표
+      const tx = cx + (Math.max(-1, Math.min(1, aim.x)) * R * 0.95);
+      const ty = cy + (Math.max(-1, Math.min(1, aim.y)) * R * 0.95);
+
+      const a = aims.get(name) || {
+        sx: null,
+        sy: null,
+        skin
+      };
+      a.tx = tx;
+      a.ty = ty;
+      a.skin = skin;
+      a.ts = performance.now();
+      aims.set(name, a);
+    });
+
+    socket.on('aim-off', ({
+      room: r,
+      name
+    }) => {
+      if (r !== room) return;
+      aims.delete(name);
+    });
+
+    // ---- 크로스헤어 렌더 ----
+    function drawAllCrosshairs() {
+      const now = performance.now();
+      for (const [name, a] of aims) {
+        const age = now - (a.ts || 0);
+        const alpha = Math.max(0, 1 - age / 800); // 0.8초에 걸쳐 페이드
+        if (alpha <= 0) {
+          aims.delete(name);
+          continue;
+        }
+
+        // EMA 스무딩
+        a.sx = a.sx == null ? a.tx : a.sx + (a.tx - a.sx) * 0.3;
+        a.sy = a.sy == null ? a.ty : a.sy + (a.ty - a.sy) * 0.3;
+
+        drawCrosshair(a.sx, a.sy, a.skin, name, alpha);
+      }
+    }
+
+    function drawCrosshair(x, y, skin, name, alpha) {
+      const color = skin === 'red' ? '#ff4d4d' : skin === 'blue' ? '#4da3ff' : '#ffd24d';
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = color;
+
+      // 링
+      ctx.beginPath();
+      ctx.arc(x, y, 12, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 십자선
+      ctx.beginPath();
+      ctx.moveTo(x - 18, y);
+      ctx.lineTo(x - 6, y);
+      ctx.moveTo(x + 6, y);
+      ctx.lineTo(x + 18, y);
+      ctx.moveTo(x, y - 18);
+      ctx.lineTo(x, y - 6);
+      ctx.moveTo(x, y + 6);
+      ctx.lineTo(x, y + 18);
+      ctx.stroke();
+
+      // 이름 라벨
+      if (name) {
+        ctx.font = '14px system-ui, sans-serif';
+        const m = ctx.measureText(name);
+        const padX = 6,
+          padY = 4;
+        const w = m.width + padX * 2,
+          h = 18 + padY * 2;
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(x - w / 2, y + 20, w, h);
+        ctx.fillStyle = '#e6f0ff';
+        ctx.fillText(name, x - m.width / 2, y + 20 + 14 + padY - 2);
+      }
+      ctx.restore();
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,328 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Dart – Controller</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --fg: #e8f0ff;
+      --card: #111a33;
+      --muted: #8aa0c7;
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, Apple SD Gothic Neo, sans-serif;
+      display: grid;
+      place-items: center
+    }
+
+    .wrap {
+      width: min(560px, 92vw);
+      display: grid;
+      gap: 12px
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #22325a;
+      border-radius: 16px;
+      padding: 14px
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap
+    }
+
+    input,
+    button,
+    select {
+      font-size: 16px;
+      border-radius: 12px;
+      border: 1px solid #2a3a66;
+      background: #0a1430;
+      color: var(--fg);
+      padding: 12px
+    }
+
+    button.primary {
+      background: #2a71ff;
+      border-color: #2a71ff
+    }
+
+    .chips button {
+      border-radius: 999px;
+      padding: 8px 14px
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px
+    }
+
+    .big {
+      font-size: 22px;
+      font-weight: 700
+    }
+
+    .status {
+      min-height: 20px
+    }
+  </style>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <div class="big">Dart Controller</div>
+      </div>
+      <div class="row">
+        <label>Room</label>
+        <input id="room" style="flex:1" />
+        <input id="name" placeholder="닉네임" style="flex:1" />
+      </div>
+      <div class="row chips">
+        <span class="muted">화살:</span>
+        <button data-skin="red">Red</button>
+        <button data-skin="blue">Blue</button>
+        <button data-skin="gold">Gold</button>
+      </div>
+      <div class="row">
+        <button id="perm">모션 권한</button>
+        <button id="ready" class="primary" style="flex:1">Ready & Aim</button>
+        <button id="cancel" style="flex:1">Cancel</button>
+      </div>
+      <div class="muted">Ready 후, 폰을 <b>앞으로</b> 빠르게 휘둘러 던지세요.</div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <script>
+    // ---- 초기화 ----
+    const url = new URL(location.href);
+    const roomInput = document.getElementById("room");
+    roomInput.value = (url.searchParams.get("room") || "DEMO").toUpperCase();
+    const nameInput = document.getElementById("name");
+    nameInput.value = "Player" + Math.floor(Math.random() * 1000);
+
+    let skin = "red";
+    document.querySelectorAll("[data-skin]").forEach(b => {
+      b.onclick = () => {
+        skin = b.dataset.skin;
+        setStatus(`선택: ${skin}`);
+      };
+    });
+
+    function setStatus(t) {
+      document.getElementById("status").textContent = t;
+    }
+
+    function room() {
+      return (roomInput.value || "DEMO").toUpperCase();
+    }
+    const playerName = () => (nameInput.value || "Player").slice(0, 16);
+
+    // ---- Socket ----
+    const SOCKET_HOST = "your-socket-server";
+    const socket = io(SOCKET_HOST, {
+      path: "/socket", // Nginx에서 /socket → /socket.io 프록시
+      query: {
+        room: room()
+      },
+      reconnection: true,
+      transports: ["websocket"],
+    });
+
+    socket.on("connect", () => {
+      setStatus(`소켓 연결됨 (#${socket.id})`);
+      socket.emit("joinRoom", {
+        room: room()
+      });
+    });
+    socket.on("connect_error", (err) => setStatus(`연결 실패: ${err.message}`));
+
+    // ---- 모션 권한(iOS) ----
+    document.getElementById("perm").onclick = async () => {
+      try {
+        if (window.DeviceMotionEvent && DeviceMotionEvent.requestPermission) {
+          const r = await DeviceMotionEvent.requestPermission();
+          if (r !== "granted") return alert("모션 권한 거부됨");
+        }
+        if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) {
+          await DeviceOrientationEvent.requestPermission();
+        }
+        alert("모션 권한 OK");
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+
+    // ---- 던지기 감지 (arming + baseline + jerk) ----
+    const ARMING_MS = 600;
+    const MAG_THRESH = 18;
+    const JERK_THRESH = 8;
+
+    // ---- 에임 송신(Ready 중 30Hz) ----
+    const AIM_HZ = 30;
+    const AIM_INTERVAL = 1000 / AIM_HZ;
+    let lastAimSent = 0;
+
+    let ready = false,
+      accPeak = 0,
+      lastAim = {
+        x: 0,
+        y: 0
+      };
+    let handleMotion = null,
+      handleOrient = null;
+
+    let armedAt = 0;
+    let baselineSum = 0,
+      baselineSamples = 0,
+      prevMag = 0;
+    let aimReady = false;
+
+    // ✅ 최신 중력 Z값 (face-up/face-down 판별용)
+    let gravityZ = 0;
+
+    function norm(v, a, b) {
+      return Math.max(-1, Math.min(1, (v - a) / (b - a) * 2 - 1));
+    }
+
+    document.getElementById("ready").onclick = () => {
+      ready = true;
+      accPeak = 0;
+      armedAt = performance.now();
+      baselineSum = 0;
+      baselineSamples = 0;
+      prevMag = 0;
+      aimReady = false;
+      setStatus("조준 중… 앞으로 휘두르면 던집니다.");
+
+      // 방 재보장
+      socket.emit("joinRoom", {
+        room: room()
+      });
+
+      // 기울기 → 조준(-1..1) & Ready 중에만 30Hz로 aim 전송
+      handleOrient = (e) => {
+        let g = e.gamma ?? 0; // 좌우 -90..90
+        let b = e.beta ?? 0; // 앞뒤 -180..180
+
+        // 기본 맵핑
+        const xNorm = norm(g, -45, 45);
+        const yNorm = norm(b, 10, 80);
+
+        // ✅ 화면이 위로 향하면 상하 반전
+        //   - 대략 z가 큰 절대값이며 음수면(face-up)로 간주 (기기에 따라 부호가 반대라면 > 0로 바꿔보세요)
+        const faceUp = Math.abs(gravityZ) > 4 && gravityZ < 0;
+        lastAim.x = xNorm;
+        lastAim.y = faceUp ? -yNorm : yNorm;
+
+        aimReady = true;
+
+        const now = performance.now();
+        if (ready && now - lastAimSent > AIM_INTERVAL) {
+          lastAimSent = now;
+          socket.emit('aim-update', {
+            room: room(),
+            name: playerName(),
+            skin,
+            aim: {
+              x: lastAim.x,
+              y: lastAim.y
+            },
+          });
+        }
+      };
+      window.addEventListener("deviceorientation", handleOrient);
+
+      // 가속도 → 파워(던지기 트리거) + ✅ gravityZ 업데이트
+      handleMotion = (e) => {
+        const ag = e.accelerationIncludingGravity || {
+          x: 0,
+          y: 0,
+          z: 0
+        };
+        gravityZ = ag.z || 0; // ← 최신 z중력 보관 (face-up/face-down 판별)
+
+        const a = e.acceleration || ag;
+        const mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+        const now = performance.now();
+
+        if (now - armedAt < ARMING_MS) {
+          baselineSum += mag;
+          baselineSamples++;
+          prevMag = mag;
+          return;
+        }
+
+        const baseline = baselineSamples ? (baselineSum / baselineSamples) : 0;
+        const magAdj = Math.max(0, mag - baseline);
+        const jerk = mag - prevMag;
+        prevMag = mag;
+
+        accPeak = Math.max(accPeak, magAdj);
+
+        if (ready && aimReady && magAdj > MAG_THRESH && jerk > JERK_THRESH) {
+          throwNow();
+        }
+      };
+      window.addEventListener("devicemotion", handleMotion);
+    };
+
+    document.getElementById("cancel").onclick = stopSensors;
+
+    function stopSensors() {
+      if (!ready && !handleMotion && !handleOrient) return;
+      ready = false;
+      if (handleMotion) window.removeEventListener("devicemotion", handleMotion);
+      if (handleOrient) window.removeEventListener("deviceorientation", handleOrient);
+      handleMotion = handleOrient = null;
+      socket.emit('aim-off', {
+        room: room(),
+        name: playerName()
+      });
+      setStatus("대기중");
+    }
+
+    function throwNow() {
+      if (!ready) return;
+      ready = false;
+
+      // 파워 0..1 맵핑 (보정 피크 기준)
+      const power = Math.max(0, Math.min(1, accPeak / 25));
+
+      const payload = {
+        room: room(),
+        name: playerName(),
+        skin,
+        aim: {
+          x: lastAim.x,
+          y: lastAim.y
+        },
+        power
+      };
+      socket.emit("throw-dart", payload);
+      setStatus(`던짐! power=${power.toFixed(2)} aim=(${lastAim.x.toFixed(2)}, ${lastAim.y.toFixed(2)})`);
+      stopSensors();
+    }
+  </script>
+</body>
+
+</html>

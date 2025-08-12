@@ -1,0 +1,307 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Climb Game – Controller</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --fg: #e8f0ff;
+      --card: #111a33;
+      --muted: #8aa0c7;
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, Apple SD Gothic Neo, sans-serif;
+      display: grid;
+      place-items: center
+    }
+
+    .wrap {
+      width: min(560px, 92vw);
+      display: grid;
+      gap: 12px
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #22325a;
+      border-radius: 16px;
+      padding: 14px
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap
+    }
+
+    input,
+    button {
+      font-size: 16px;
+      border-radius: 12px;
+      border: 1px solid #2a3a66;
+      background: #0a1430;
+      color: var(--fg);
+      padding: 12px
+    }
+
+    button.primary {
+      background: #51cf66;
+      border-color: #51cf66;
+      color: #0b1020;
+      font-weight: 700
+    }
+
+    button.warn {
+      background: #2a71ff;
+      border-color: #2a71ff;
+      font-weight: 700
+    }
+
+    button.ghost {
+      background: #111a33;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px
+    }
+
+    .big {
+      font-size: 22px;
+      font-weight: 700
+    }
+
+    .status {
+      min-height: 20px
+    }
+
+    .meter {
+      height: 14px;
+      border-radius: 8px;
+      background: #111a33;
+      overflow: hidden
+    }
+
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: #4dabf7;
+      transition: width 80ms linear;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <div class="big">Climb Controller</div>
+      </div>
+      <div class="row">
+        <label>Room</label>
+        <input id="room" style="flex:1" />
+        <input id="name" placeholder="닉네임" style="flex:1" />
+      </div>
+      <div class="row">
+        <button id="perm" class="warn">모션 권한</button>
+        <button id="join" class="ghost">Join</button>
+        <button id="start" class="primary" style="flex:1" disabled>Start Motion</button>
+        <button id="stop" class="ghost" style="flex:1" disabled>Stop</button>
+      </div>
+      <div class="meter">
+        <div id="bar" class="bar"></div>
+      </div>
+      <div class="muted">휴대폰을 <b>세워서</b> 위아래로 흔들면 올라갑니다. (최대 4명)</div>
+      <div class="status" id="status">대기중…</div>
+    </div>
+  </div>
+
+  <script>
+    // ====== Config (네임스페이스/프록시 경로 필요 시 수정) ======
+    const SOCKET_NAMESPACE = 'your-socket-server'; // 네임스페이스 미사용이면 '/' 로 변경
+    const SOCKET_PATH = '/socket'; // Nginx에서 /socket 업그레이드 프록시 사용 시 유지
+
+    // ====== 초기화 ======
+    const url = new URL(location.href);
+    const roomInput = document.getElementById("room");
+    const nameInput = document.getElementById("name");
+    const bar = document.getElementById("bar");
+    const statusEl = document.getElementById("status");
+    const btnPerm = document.getElementById("perm");
+    const btnJoin = document.getElementById("join");
+    const btnStart = document.getElementById("start");
+    const btnStop = document.getElementById("stop");
+
+    function setStatus(t) {
+      statusEl.textContent = t;
+    }
+    const room = () => (roomInput.value || 'DEMO').toUpperCase();
+    const playerName = () => (nameInput.value || 'Player').slice(0, 16);
+
+    // URL 파라미터로 room이 오면 세팅+잠금(선택)
+    const roomFromQR = (url.searchParams.get("room") || "DEMO").toUpperCase();
+    roomInput.value = roomFromQR;
+    if (roomFromQR) roomInput.readOnly = true;
+
+    // 랜덤 닉네임 기본값
+    nameInput.value = "Player" + Math.floor(Math.random() * 1000);
+
+    // ====== Socket ======
+    const socket = io(SOCKET_NAMESPACE, {
+      path: SOCKET_PATH,
+      query: {
+        role: 'controller',
+        room: room()
+      },
+      reconnection: true,
+      transports: ['websocket'],
+    });
+
+    socket.on('connect', () => {
+      setStatus(`소켓 연결됨 (#${socket.id})`);
+      // 방 정보 바뀌었을 수 있으니 재조인 버튼으로 명시적 처리
+      btnJoin.disabled = false;
+    });
+
+    socket.on('joinedRoom', ({
+      room
+    }) => {
+      setStatus(`Joined room ${room}. 모션을 시작할 수 있습니다.`);
+      btnStart.disabled = false;
+    });
+
+    socket.on('gameStarted', () => {
+      // 서버에서 라운드 시작 브로드캐스트가 오면 게이지 초기화(선택)
+      bar.style.width = '0%';
+    });
+
+    socket.on('error', (e) => {
+      setStatus(`Error: ${e.message || e}`);
+    });
+
+    // ====== Join / 권한 / 모션 ======
+    btnJoin.onclick = () => {
+      socket.emit('joinRoom', {
+        room: room(),
+        name: playerName()
+      });
+      setStatus('Join 요청 전송…');
+    };
+
+    btnPerm.onclick = async () => {
+      try {
+        // iOS 권한 요청
+        if (typeof DeviceMotionEvent !== 'undefined' &&
+          typeof DeviceMotionEvent.requestPermission === 'function') {
+          const r1 = await DeviceMotionEvent.requestPermission();
+          if (r1 !== 'granted') return alert('모션 권한 거부됨');
+        }
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+          await DeviceOrientationEvent.requestPermission().catch(() => {});
+        }
+        alert('모션 권한 OK');
+      } catch (e) {
+        alert('권한 요청 오류: ' + e.message);
+      }
+    };
+
+    // 모션 파이프라인 파라미터
+    const SEND_INTERVAL = 50; // 50ms (20Hz)
+    const THRESH = 0.8; // 노이즈 컷
+    const MAX_DELTA = 20; // 서버와 합의된 상한(안티치트)
+    let enabled = false;
+    let bucket = 0;
+    let prevMag = 0;
+    let sendTimer = null;
+
+    btnStart.onclick = () => {
+      startMotion();
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+    };
+    btnStop.onclick = () => {
+      stopMotion();
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      bar.style.width = '0%';
+    };
+
+    function startMotion() {
+      if (enabled) return;
+      enabled = true;
+      setStatus('Motion streaming…');
+
+      window.addEventListener('devicemotion', onMotion, {
+        passive: true
+      });
+
+      sendTimer = setInterval(() => {
+        if (!enabled) return;
+        // 누적치를 서버로 전송
+        if (bucket <= 0) return;
+        const delta = Math.min(bucket, MAX_DELTA);
+        socket.emit('shake', {
+          delta
+        });
+        bucket = 0;
+      }, SEND_INTERVAL);
+    }
+
+    function stopMotion() {
+      if (!enabled) return;
+      enabled = false;
+      setStatus('대기중');
+      window.removeEventListener('devicemotion', onMotion);
+      if (sendTimer) {
+        clearInterval(sendTimer);
+        sendTimer = null;
+      }
+    }
+
+    function onMotion(e) {
+      const ag = e.accelerationIncludingGravity || {
+        x: 0,
+        y: 0,
+        z: 0
+      };
+      const a = e.acceleration || ag;
+
+      // 전체 가속도의 크기 사용 (방향성 무시, 위아래 흔들기 유리)
+      const mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+
+      // 변화량( jerk 유사 ) 기반 증분
+      let delta = Math.max(0, mag - prevMag);
+      prevMag = mag;
+
+      // 노이즈 컷
+      if (delta < THRESH) delta = 0;
+
+      bucket += delta;
+
+      // 사용자 피드백 게이지 (임의 스케일)
+      const uiVal = Math.max(0, Math.min(100, (delta * 8)));
+      bar.style.width = uiVal + '%';
+    }
+
+    // 페이지 이탈 시 정리
+    window.addEventListener('pagehide', stopMotion);
+    window.addEventListener('beforeunload', stopMotion);
+  </script>
+</body>
+
+</html>
