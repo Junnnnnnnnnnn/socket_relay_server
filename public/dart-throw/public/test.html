@@ -1,0 +1,844 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Dart Socket Test</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    h2 {
+      color: #555;
+      margin-top: 0;
+      font-size: 18px;
+    }
+
+    .input-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #666;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+
+    .btn-primary {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #45a049;
+    }
+
+    .btn-danger {
+      background: #f44336;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #da190b;
+    }
+
+    .btn-secondary {
+      background: #2196F3;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #0b7dda;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 10px;
+      font-weight: 500;
+    }
+
+    .status.connected {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.disconnected {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status.pending {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+
+    .client-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .client-box {
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      background: #fafafa;
+    }
+
+    .client-box.active {
+      border-color: #4CAF50;
+      background: #f1f8f4;
+    }
+
+    .client-box .input-group {
+      margin-bottom: 10px;
+    }
+
+    .client-box .input-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .client-box .input-group input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .client-id {
+      font-family: monospace;
+      font-size: 12px;
+      color: #666;
+      word-break: break-all;
+      margin-top: 5px;
+      white-space: pre-line;
+    }
+
+    .room-info {
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+
+    .player-count {
+      font-size: 24px;
+      font-weight: bold;
+      color: #1976d2;
+      margin: 10px 0;
+    }
+
+    .game-ready {
+      background: #c8e6c9;
+      color: #2e7d32;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-weight: bold;
+      text-align: center;
+      display: none;
+    }
+
+    .game-ready.show {
+      display: block;
+    }
+
+    .ranking-section {
+      animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .ranking-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      margin: 8px 0;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+
+    .ranking-item.first {
+      background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+      border-color: #ffc107;
+      font-weight: bold;
+    }
+
+    .ranking-item.second {
+      background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
+      border-color: #9e9e9e;
+    }
+
+    .ranking-rank {
+      font-size: 24px;
+      font-weight: bold;
+      margin-right: 15px;
+      min-width: 40px;
+    }
+
+    .ranking-name {
+      flex: 1;
+      font-size: 16px;
+    }
+
+    .ranking-score {
+      font-size: 20px;
+      font-weight: bold;
+      color: #1976d2;
+    }
+
+    .log {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    .log-entry {
+      margin-bottom: 5px;
+      padding: 3px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .timestamp {
+      color: #999;
+      margin-right: 8px;
+    }
+  </style>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+
+<body>
+  <div class="card">
+    <h1>🎯 Dart Socket 연결 테스트</h1>
+
+    <div class="input-group">
+      <label>서버 URL:</label>
+      <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="http://localhost:3000">
+    </div>
+
+    <div class="input-group">
+      <label>Room 코드:</label>
+      <input type="text" id="room" value="TEST" placeholder="TEST">
+    </div>
+
+    <div>
+      <button class="btn-primary" id="connect1">클라이언트 1 연결</button>
+      <button class="btn-primary" id="connect2">클라이언트 2 연결</button>
+      <button class="btn-secondary" id="checkRoom">방 인원 확인</button>
+      <button class="btn-danger" id="disconnectAll">모두 연결 해제</button>
+      <button class="btn-primary" id="finishGame" style="background: #ff9800; border-color: #ff9800;">게임 완료</button>
+    </div>
+
+    <div class="client-info">
+      <div class="client-box" id="client1">
+        <h2>클라이언트 1</h2>
+        <div class="input-group">
+          <label>이름:</label>
+          <input type="text" id="name1" placeholder="Player 1" value="Player 1" />
+        </div>
+        <div class="status disconnected" id="status1">연결 안됨</div>
+        <div class="client-id" id="clientId1">-</div>
+        <div class="score-section" id="scoreSection1" style="display: none; margin-top: 15px;">
+          <label style="font-weight: 500; margin-bottom: 8px; display: block;">점수 선택:</label>
+          <div class="score-buttons" style="display: flex; gap: 8px;">
+            <button class="btn-score" data-client="1" data-score="50">50</button>
+            <button class="btn-score" data-client="1" data-score="100">100</button>
+            <button class="btn-score" data-client="1" data-score="80">80</button>
+          </div>
+          <div style="margin-top: 10px; font-weight: 500;">
+            현재 점수: <span id="currentScore1">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="client-box" id="client2">
+        <h2>클라이언트 2</h2>
+        <div class="input-group">
+          <label>이름:</label>
+          <input type="text" id="name2" placeholder="Player 2" value="Player 2" />
+        </div>
+        <div class="status disconnected" id="status2">연결 안됨</div>
+        <div class="client-id" id="clientId2">-</div>
+        <div class="score-section" id="scoreSection2" style="display: none; margin-top: 15px;">
+          <label style="font-weight: 500; margin-bottom: 8px; display: block;">점수 선택:</label>
+          <div class="score-buttons" style="display: flex; gap: 8px;">
+            <button class="btn-score" data-client="2" data-score="50">50</button>
+            <button class="btn-score" data-client="2" data-score="100">100</button>
+            <button class="btn-score" data-client="2" data-score="80">80</button>
+          </div>
+          <div style="margin-top: 10px; font-weight: 500;">
+            현재 점수: <span id="currentScore2">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="room-info">
+      <h2>방 정보</h2>
+      <div>Room: <strong id="roomDisplay">-</strong></div>
+      <div class="player-count">접속 인원: <span id="playerCount">0</span> / 2</div>
+    </div>
+
+    <div class="game-ready" id="gameReady">
+      ✅ 게임 시작 가능! (2명 접속 완료)
+    </div>
+
+    <div class="ranking-section" id="rankingSection" style="display: none; margin-top: 20px;">
+      <div class="card" style="background: #fff3cd; border: 2px solid #ffc107;">
+        <h2 style="margin-top: 0; color: #856404;">🏆 최종 순위</h2>
+        <div id="rankingList"></div>
+      </div>
+    </div>
+
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    let socket1 = null;
+    let socket2 = null;
+    let playerCount = 0;
+    let playerScore1 = 0;
+    let playerScore2 = 0;
+    let playerName1 = '';
+    let playerName2 = '';
+
+    const serverUrlInput = document.getElementById('serverUrl');
+    const roomInput = document.getElementById('room');
+    const name1Input = document.getElementById('name1');
+    const name2Input = document.getElementById('name2');
+    const connect1Btn = document.getElementById('connect1');
+    const connect2Btn = document.getElementById('connect2');
+    const checkRoomBtn = document.getElementById('checkRoom');
+    const disconnectAllBtn = document.getElementById('disconnectAll');
+    const finishGameBtn = document.getElementById('finishGame');
+    const rankingSection = document.getElementById('rankingSection');
+    const rankingList = document.getElementById('rankingList');
+    const status1 = document.getElementById('status1');
+    const status2 = document.getElementById('status2');
+    const clientId1 = document.getElementById('clientId1');
+    const clientId2 = document.getElementById('clientId2');
+    const roomDisplay = document.getElementById('roomDisplay');
+    const playerCountDisplay = document.getElementById('playerCount');
+    const gameReady = document.getElementById('gameReady');
+    const logDiv = document.getElementById('log');
+    const client1Box = document.getElementById('client1');
+    const client2Box = document.getElementById('client2');
+    const scoreSection1 = document.getElementById('scoreSection1');
+    const scoreSection2 = document.getElementById('scoreSection2');
+    const currentScore1 = document.getElementById('currentScore1');
+    const currentScore2 = document.getElementById('currentScore2');
+
+    function log(message) {
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="timestamp">[${timestamp}]</span>${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function updateStatus(clientNum, isConnected, socketId, playerName) {
+      const status = clientNum === 1 ? status1 : status2;
+      const clientId = clientNum === 1 ? clientId1 : clientId2;
+      const clientBox = clientNum === 1 ? client1Box : client2Box;
+      const scoreSection = clientNum === 1 ? scoreSection1 : scoreSection2;
+
+      if (isConnected) {
+        status.textContent = `✅ 연결됨`;
+        status.className = 'status connected';
+        clientId.textContent = `이름: ${playerName || 'Unknown'}\nSocket ID: ${socketId}`;
+        clientBox.classList.add('active');
+        scoreSection.style.display = 'block';
+      } else {
+        status.textContent = '❌ 연결 안됨';
+        status.className = 'status disconnected';
+        clientId.textContent = '-';
+        clientBox.classList.remove('active');
+        scoreSection.style.display = 'none';
+        // 점수 초기화
+        if (clientNum === 1) {
+          playerScore1 = 0;
+          currentScore1.textContent = '0';
+        } else {
+          playerScore2 = 0;
+          currentScore2.textContent = '0';
+        }
+      }
+    }
+
+    function updateScore(clientNum, score) {
+      const room = roomInput.value.trim() || 'TEST';
+      const socket = clientNum === 1 ? socket1 : socket2;
+      const playerName = clientNum === 1 ? playerName1 : playerName2;
+      const currentScoreElement = clientNum === 1 ? currentScore1 : currentScore2;
+
+      if (!socket || !socket.connected) {
+        log(`❌ 클라이언트 ${clientNum}가 연결되어 있지 않습니다.`);
+        return;
+      }
+
+      // 점수 추가
+      if (clientNum === 1) {
+        playerScore1 += score;
+        currentScore1.textContent = playerScore1;
+      } else {
+        playerScore2 += score;
+        currentScore2.textContent = playerScore2;
+      }
+
+      log(`📊 클라이언트 ${clientNum} (${playerName}) 점수 추가: ${score}점 (총: ${clientNum === 1 ? playerScore1 : playerScore2}점)`);
+
+      // throw-dart 이벤트로 서버에 전송
+      socket.emit('throw-dart', {
+        room: room.toUpperCase(),
+        name: playerName,
+        score: score, // 점수 추가
+        aim: {
+          x: 0,
+          y: 0
+        }
+      });
+    }
+
+    function updateRoomInfo() {
+      const room = roomInput.value || 'TEST';
+      roomDisplay.textContent = room.toUpperCase();
+
+      // 실제로는 서버에서 방 인원을 가져와야 하지만,
+      // 테스트를 위해 클라이언트 연결 수로 표시
+      let count = 0;
+      if (socket1 && socket1.connected) count++;
+      if (socket2 && socket2.connected) count++;
+
+      playerCount = count;
+      playerCountDisplay.textContent = count;
+
+      if (count >= 2) {
+        gameReady.classList.add('show');
+      } else {
+        gameReady.classList.remove('show');
+      }
+    }
+
+    function updateButtonText(clientNum, isConnected) {
+      const button = clientNum === 1 ? connect1Btn : connect2Btn;
+      button.textContent = isConnected ? `클라이언트 ${clientNum} 해제` : `클라이언트 ${clientNum} 연결`;
+      if (isConnected) {
+        button.classList.remove('btn-primary');
+        button.classList.add('btn-danger');
+      } else {
+        button.classList.remove('btn-danger');
+        button.classList.add('btn-primary');
+      }
+    }
+
+    function disconnectClient(clientNum) {
+      if (clientNum === 1 && socket1) {
+        socket1.disconnect();
+        socket1 = null;
+        playerName1 = '';
+        updateStatus(1, false, '', '');
+        updateButtonText(1, false);
+        log(`클라이언트 1 연결 해제됨`);
+        updateRoomInfo();
+      } else if (clientNum === 2 && socket2) {
+        socket2.disconnect();
+        socket2 = null;
+        playerName2 = '';
+        updateStatus(2, false, '', '');
+        updateButtonText(2, false);
+        log(`클라이언트 2 연결 해제됨`);
+        updateRoomInfo();
+      }
+    }
+
+    function connectClient(clientNum) {
+      const serverUrl = serverUrlInput.value.trim() || 'http://localhost:3000';
+      const room = roomInput.value.trim() || 'TEST';
+      const nameInput = clientNum === 1 ? name1Input : name2Input;
+      const playerName = nameInput.value.trim() || `Player ${clientNum}`;
+
+      log(`클라이언트 ${clientNum} 연결 시도: ${serverUrl}/dart, room: ${room}, name: ${playerName}`);
+
+      const socket = io(`${serverUrl}/dart`, {
+        query: {
+          room: room.toUpperCase(),
+          name: playerName
+        },
+        reconnection: false,
+        transports: ['websocket', 'polling']
+      });
+
+      socket.on('connect', () => {
+        log(`✅ 클라이언트 ${clientNum} 연결 성공! Socket ID: ${socket.id}, Name: ${playerName}`);
+
+        if (clientNum === 1) {
+          socket1 = socket;
+          playerName1 = playerName;
+          updateStatus(1, true, socket.id, playerName);
+          updateButtonText(1, true);
+        } else {
+          socket2 = socket;
+          playerName2 = playerName;
+          updateStatus(2, true, socket.id, playerName);
+          updateButtonText(2, true);
+        }
+
+        // joinRoom 이벤트 전송 (이름 포함)
+        socket.emit('joinRoom', {
+          room: room.toUpperCase(),
+          name: playerName
+        });
+        updateRoomInfo();
+      });
+
+      socket.on('joinedRoom', (data) => {
+        const room = typeof data === 'string' ? data : data.room;
+        const count = typeof data === 'object' && data.playerCount !== undefined ? data.playerCount : null;
+        log(`✅ 클라이언트 ${clientNum} 방 입장 완료: ${room}${count !== null ? ` (현재 인원: ${count}명)` : ''}`);
+        if (count !== null) {
+          playerCount = count;
+          updateRoomInfo();
+        }
+      });
+
+      socket.on('clientInfo', (data) => {
+        if (data && data.socketId && data.name) {
+          const currentName = clientNum === 1 ? playerName1 : playerName2;
+          if (data.name !== currentName) {
+            log(`ℹ️ 클라이언트 ${clientNum} 정보 업데이트: 이름=${data.name}, Socket ID=${data.socketId}`);
+            if (clientNum === 1) {
+              playerName1 = data.name;
+              updateStatus(1, true, data.socketId, data.name);
+            } else {
+              playerName2 = data.name;
+              updateStatus(2, true, data.socketId, data.name);
+            }
+          }
+        }
+      });
+
+      socket.on('roomPlayerCount', (data) => {
+        if (data && typeof data.playerCount === 'number') {
+          playerCount = data.playerCount;
+          log(`📊 방 인원 업데이트: ${data.playerCount}명`);
+          updateRoomInfo();
+        }
+      });
+
+      // throw-dart 응답 수신 (다른 클라이언트의 점수)
+      socket.on('dart-thrown', (data) => {
+        log(`🎯 다트 던짐: ${data.name} - 점수: ${data.score || 'N/A'}, Aim: ${JSON.stringify(data.aim)}`);
+      });
+
+      // 게임 결과 수신 (win/lose)
+      socket.on('game-result', (data) => {
+        // 자신의 socketId로 결과 찾기
+        const myResult = data.results && data.results[socket.id];
+        if (myResult) {
+          const resultEmoji = myResult.result === 'win' ? '🏆' : myResult.result === 'tie' ? '🤝' : '😢';
+          const resultText = myResult.result === 'win' ? '승리!' : myResult.result === 'tie' ? '무승부!' : '패배';
+          log(`${resultEmoji} 클라이언트 ${clientNum} 게임 결과: ${resultText} (${myResult.rank}위, ${myResult.score}점)`);
+
+          // 클라이언트 상태 업데이트
+          if (clientNum === 1) {
+            updateStatus(1, true, socket.id, `${playerName1} - ${resultText}`);
+          } else {
+            updateStatus(2, true, socket.id, `${playerName2} - ${resultText}`);
+          }
+        }
+      });
+
+      // 게임 완료 알림 수신
+      socket.on('game-finished', (data) => {
+        log(`🎮 게임 완료! 방: ${data.room}`);
+        if (data.ranking && data.ranking.length > 0) {
+          log('최종 순위:');
+          data.ranking.forEach((player, index) => {
+            log(`  ${index + 1}위: ${player.name} - ${player.score}점`);
+          });
+        }
+      });
+
+      socket.on('connect_error', (error) => {
+        log(`❌ 클라이언트 ${clientNum} 연결 실패: ${error.message}`);
+        if (clientNum === 1) {
+          playerName1 = '';
+          updateStatus(1, false, '', '');
+          updateButtonText(1, false);
+        } else {
+          playerName2 = '';
+          updateStatus(2, false, '', '');
+          updateButtonText(2, false);
+        }
+        updateRoomInfo();
+      });
+
+      socket.on('disconnect', () => {
+        log(`⚠️ 클라이언트 ${clientNum} 연결 해제`);
+        if (clientNum === 1) {
+          updateStatus(1, false, '', '');
+          socket1 = null;
+          playerName1 = '';
+          updateButtonText(1, false);
+        } else {
+          updateStatus(2, false, '', '');
+          socket2 = null;
+          playerName2 = '';
+          updateButtonText(2, false);
+        }
+        updateRoomInfo();
+      });
+
+      socket.on('error', (error) => {
+        log(`❌ 클라이언트 ${clientNum} 에러: ${JSON.stringify(error)}`);
+      });
+    }
+
+    function toggleClient(clientNum) {
+      const isConnected = (clientNum === 1 && socket1 && socket1.connected) ||
+        (clientNum === 2 && socket2 && socket2.connected);
+
+      if (isConnected) {
+        disconnectClient(clientNum);
+      } else {
+        connectClient(clientNum);
+      }
+    }
+
+    connect1Btn.onclick = () => toggleClient(1);
+    connect2Btn.onclick = () => toggleClient(2);
+
+    checkRoomBtn.onclick = () => {
+      const room = roomInput.value.trim() || 'TEST';
+      log(`방 인원 확인 요청: ${room}`);
+
+      // 실제로는 서버 API로 방 인원을 확인해야 하지만,
+      // 현재는 클라이언트 연결 상태만 표시
+      updateRoomInfo();
+      log(`현재 연결된 클라이언트: ${playerCount}명`);
+
+      if (playerCount >= 2) {
+        log('✅ 게임 시작 가능 (2명 접속 완료)');
+      } else {
+        log(`⚠️ 게임 시작 불가 (현재 ${playerCount}명, 2명 필요)`);
+      }
+    };
+
+    disconnectAllBtn.onclick = () => {
+      log('모든 클라이언트 연결 해제 중...');
+
+      if (socket1) {
+        socket1.disconnect();
+        socket1 = null;
+        playerName1 = '';
+        updateStatus(1, false, '', '');
+        updateButtonText(1, false);
+      }
+
+      if (socket2) {
+        socket2.disconnect();
+        socket2 = null;
+        playerName2 = '';
+        updateStatus(2, false, '', '');
+        updateButtonText(2, false);
+      }
+
+      updateRoomInfo();
+      rankingSection.style.display = 'none';
+      log('모든 클라이언트 연결 해제 완료');
+    };
+
+    function showRanking() {
+      const players = [];
+
+      // 연결된 클라이언트만 순위에 포함
+      if (socket1 && socket1.connected && playerName1) {
+        players.push({
+          name: playerName1,
+          score: playerScore1,
+          clientNum: 1,
+          socketId: socket1.id
+        });
+      }
+
+      if (socket2 && socket2.connected && playerName2) {
+        players.push({
+          name: playerName2,
+          score: playerScore2,
+          clientNum: 2,
+          socketId: socket2.id
+        });
+      }
+
+      if (players.length === 0) {
+        log('⚠️ 순위를 표시할 플레이어가 없습니다.');
+        return;
+      }
+
+      // 점수 순으로 정렬 (내림차순)
+      players.sort((a, b) => b.score - a.score);
+
+      // 순위 표시
+      rankingList.innerHTML = '';
+      players.forEach((player, index) => {
+        const rank = index + 1;
+        const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+        const rankClass = rank === 1 ? 'first' : rank === 2 ? 'second' : '';
+
+        const item = document.createElement('div');
+        item.className = `ranking-item ${rankClass}`;
+        item.innerHTML = `
+          <div class="ranking-rank">${rankEmoji} ${rank}위</div>
+          <div class="ranking-name">${player.name}</div>
+          <div class="ranking-score">${player.score}점</div>
+        `;
+        rankingList.appendChild(item);
+      });
+
+      rankingSection.style.display = 'block';
+      log(`🏆 최종 순위 발표! (총 ${players.length}명)`);
+      players.forEach((player, index) => {
+        log(`${index + 1}위: ${player.name} - ${player.score}점`);
+      });
+
+      // 스크롤을 순위 섹션으로 이동
+      rankingSection.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest'
+      });
+    }
+
+    finishGameBtn.onclick = () => {
+      const room = roomInput.value.trim() || 'TEST';
+      const players = [];
+
+      // 연결된 클라이언트의 점수 정보 수집
+      if (socket1 && socket1.connected && playerName1) {
+        players.push({
+          socketId: socket1.id,
+          name: playerName1,
+          score: playerScore1
+        });
+      }
+
+      if (socket2 && socket2.connected && playerName2) {
+        players.push({
+          socketId: socket2.id,
+          name: playerName2,
+          score: playerScore2
+        });
+      }
+
+      if (players.length === 0) {
+        log('⚠️ 게임 완료할 플레이어가 없습니다.');
+        return;
+      }
+
+      // 서버로 게임 완료 이벤트 전송
+      if (socket1 && socket1.connected) {
+        socket1.emit('finish-game', {
+          room: room.toUpperCase(),
+          scores: players
+        });
+      } else if (socket2 && socket2.connected) {
+        socket2.emit('finish-game', {
+          room: room.toUpperCase(),
+          scores: players
+        });
+      }
+
+      // 로컬 순위 표시
+      showRanking();
+    };
+
+    // 점수 버튼 이벤트 리스너 추가
+    document.querySelectorAll('.btn-score').forEach(button => {
+      button.addEventListener('click', () => {
+        const clientNum = parseInt(button.getAttribute('data-client'));
+        const score = parseInt(button.getAttribute('data-score'));
+        updateScore(clientNum, score);
+      });
+    });
+
+    // 초기 로그 및 버튼 상태 설정
+    log('테스트 페이지 로드 완료');
+    updateButtonText(1, false);
+    updateButtonText(2, false);
+    updateRoomInfo();
+  </script>
+</body>
+
+</html>
