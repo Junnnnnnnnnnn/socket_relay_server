@@ -284,7 +284,7 @@
 
     <div class="input-group">
       <label>서버 URL:</label>
-      <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="http://localhost:3000">
+      <input type="text" id="serverUrl" value="https://socket-relay.zipshowkorea.com" placeholder="https://socket-relay.zipshowkorea.com">
     </div>
 
     <div class="input-group">
@@ -525,7 +525,7 @@
     }
 
     function connectClient(clientNum) {
-      const serverUrl = serverUrlInput.value.trim() || 'http://localhost:3000';
+      const serverUrl = serverUrlInput.value.trim() || 'https://socket-relay.zipshowkorea.com';
       const room = roomInput.value.trim() || 'TEST';
       const nameInput = clientNum === 1 ? name1Input : name2Input;
       const playerName = nameInput.value.trim() || `Player ${clientNum}`;
