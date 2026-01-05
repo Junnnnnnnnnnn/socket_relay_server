@@ -193,6 +193,7 @@
       <div class="note" id="joinLink"></div>
       <button id="startBtn" class="btn" style="margin-top:6px">Start Game</button>
       <span id="status" class="note" style="margin-left:8px">Waiting…</span>
+      <div class="note" id="playerCount" style="margin-top:4px">참여자: 0명</div>
     </div>
   </div>
 
@@ -223,7 +224,7 @@
     });
 
     // ===== Socket =====
-    const socket = io('your-socket-server', {
+    const socket = io('https://static-dev.zipshowkorea.com/climb', {
       path: '/socket',
       query: {
         role: 'display',
@@ -237,6 +238,7 @@
     const toastEl = document.getElementById('toast');
     const startBtn = document.getElementById('startBtn');
     const lanesEl = document.getElementById('lanes');
+    const playerCountEl = document.getElementById('playerCount');
 
     const players = new Map(); // id -> { lane, fill, runner, label, pct, color, name }
 
@@ -253,7 +255,21 @@
         lanesEl.innerHTML = '';
         players.clear();
       }
-      state.players.forEach(upsertRunner);
+      state.players.forEach((p, index) => upsertRunner(p, index));
+
+      // 게임 상태에 따라 버튼 상태 업데이트
+      if (state.status === 'running') {
+        startBtn.disabled = true;
+      } else if (state.status === 'idle' || state.status === 'ended') {
+        startBtn.disabled = false;
+      }
+    });
+
+    socket.on('roomPlayerCount', ({
+      room,
+      playerCount
+    }) => {
+      playerCountEl.textContent = `참여자: ${playerCount}명`;
     });
 
     socket.on('gameStarted', () => {
@@ -286,19 +302,15 @@
       }, 1800);
     }
 
-    function hexToRGBA(hex, a) {
-      const s = hex.replace('#', '');
-      const bigint = parseInt(s.length === 3 ? s.split('').map(c => c + c).join('') : s, 16);
-      const r = (bigint >> 16) & 255,
-        g = (bigint >> 8) & 255,
-        b = bigint & 255;
-      return `rgba(${r},${g},${b},${a})`;
-    }
+    // 빨강, 파랑 (최대 2명)
+    const COLORS = ['#ff6b6b', '#4dabf7']; // 빨강, 파랑
 
     // ===== UI =====
-    function upsertRunner(p) {
+    function upsertRunner(p, index) {
       let row = players.get(p.id);
       if (!row) {
+        const colorIndex = (index !== undefined && index !== null) ? (index % 2) : 0;
+        const color = COLORS[colorIndex];
         const lane = document.createElement('div');
         lane.className = 'lane';
 
@@ -309,12 +321,16 @@
 
         const fill = document.createElement('div');
         fill.className = 'fill';
-        fill.style.background = `linear-gradient(to top, ${hexToRGBA(p.color, .55)}, ${hexToRGBA(p.color, .22)})`;
+        if (colorIndex === 0) {
+          fill.style.background = 'linear-gradient(to top, rgba(255, 107, 107, 0.55), rgba(255, 107, 107, 0.22))';
+        } else {
+          fill.style.background = 'linear-gradient(to top, rgba(77, 171, 247, 0.55), rgba(77, 171, 247, 0.22))';
+        }
         lane.appendChild(fill);
 
         const runner = document.createElement('div');
         runner.className = 'runner';
-        runner.style.background = p.color;
+        runner.style.background = color;
         runner.textContent = (p.name || '').slice(0, 3).toUpperCase();
         lane.appendChild(runner);
 
@@ -335,17 +351,15 @@
           runner,
           label,
           pct,
-          color: p.color,
+          color: color,
           name: p.name
         };
         players.set(p.id, row);
       }
 
-      // progress: accept 0..100 or 0..1
+      // progress: 0..100 (%)
       const raw = Number(p.progress) || 0;
-      const h = raw <= 1 ? raw * 100 : raw;
-
-      const clamped = Math.max(0, Math.min(100, h));
+      const clamped = Math.max(0, Math.min(100, raw));
       row.fill.style.height = `${clamped}%`;
       row.runner.style.bottom = `${clamped}%`;
       row.pct.textContent = `${Math.round(clamped)}%`;

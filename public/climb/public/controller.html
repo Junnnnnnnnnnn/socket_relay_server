@@ -102,6 +102,61 @@
       background: #4dabf7;
       transition: width 80ms linear;
     }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      /* Dynamic viewport height for mobile */
+      background: rgba(11, 16, 32, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+      -webkit-overflow-scrolling: touch;
+      touch-action: manipulation;
+    }
+
+    .modal-overlay.show {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .modal {
+      background: var(--card);
+      border: 2px solid #22325a;
+      border-radius: 20px;
+      padding: 32px;
+      min-width: 280px;
+      max-width: 90vw;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .modal-title {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .modal-title.win {
+      color: #51cf66;
+    }
+
+    .modal-title.lose {
+      color: #ff6b6b;
+    }
+
+    .modal button {
+      margin-top: 20px;
+      width: 100%;
+    }
   </style>
 </head>
 
@@ -119,7 +174,7 @@
       <div class="row">
         <button id="perm" class="warn">모션 권한</button>
         <button id="join" class="ghost">Join</button>
-        <button id="start" class="primary" style="flex:1" disabled>Start Motion</button>
+        <button id="start" class="primary" style="flex:1" disabled>Start Game</button>
         <button id="stop" class="ghost" style="flex:1" disabled>Stop</button>
       </div>
       <div class="meter">
@@ -127,12 +182,21 @@
       </div>
       <div class="muted">휴대폰을 <b>세워서</b> 위아래로 흔들면 올라갑니다. (최대 4명)</div>
       <div class="status" id="status">대기중…</div>
+      <div class="muted" id="playerCount">참여자: 0명</div>
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-title" id="modalTitle"></div>
+      <button class="primary" id="modalClose">확인</button>
     </div>
   </div>
 
   <script>
     // ====== Config (네임스페이스/프록시 경로 필요 시 수정) ======
-    const SOCKET_NAMESPACE = 'your-socket-server'; // 네임스페이스 미사용이면 '/' 로 변경
+    const SOCKET_NAMESPACE = 'https://static-dev.zipshowkorea.com/climb'; // 네임스페이스 미사용이면 '/' 로 변경
     const SOCKET_PATH = '/socket'; // Nginx에서 /socket 업그레이드 프록시 사용 시 유지
 
     // ====== 초기화 ======
@@ -141,14 +205,34 @@
     const nameInput = document.getElementById("name");
     const bar = document.getElementById("bar");
     const statusEl = document.getElementById("status");
+    const playerCountEl = document.getElementById("playerCount");
     const btnPerm = document.getElementById("perm");
     const btnJoin = document.getElementById("join");
     const btnStart = document.getElementById("start");
     const btnStop = document.getElementById("stop");
+    const modalOverlay = document.getElementById("modalOverlay");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalClose = document.getElementById("modalClose");
 
     function setStatus(t) {
       statusEl.textContent = t;
     }
+
+    function showModal(title, type) {
+      console.log('showModal called:', title, type);
+      modalTitle.textContent = title;
+      modalTitle.className = 'modal-title ' + type;
+      document.body.style.overflow = 'hidden';
+      modalOverlay.classList.add('show');
+      console.log('Modal overlay classes:', modalOverlay.className);
+    }
+
+    function hideModal() {
+      modalOverlay.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+
+    modalClose.onclick = hideModal;
     const room = () => (roomInput.value || 'DEMO').toUpperCase();
     const playerName = () => (nameInput.value || 'Player').slice(0, 16);
 
@@ -178,15 +262,43 @@
     });
 
     socket.on('joinedRoom', ({
-      room
+      room,
+      playerCount
     }) => {
-      setStatus(`Joined room ${room}. 모션을 시작할 수 있습니다.`);
+      setStatus(`Joined room ${room}. 게임 시작을 기다리는 중...`);
+      if (playerCount !== undefined) {
+        playerCountEl.textContent = `참여자: ${playerCount}명`;
+      }
       btnStart.disabled = false;
     });
 
     socket.on('gameStarted', () => {
       // 서버에서 라운드 시작 브로드캐스트가 오면 게이지 초기화(선택)
       bar.style.width = '0%';
+      setStatus('게임 시작! 모션 스트리밍 중...');
+      startMotion();
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+    });
+
+    socket.on('gameOver', ({
+      winnerId
+    }) => {
+      console.log('gameOver event received, winnerId:', winnerId, 'socket.id:', socket.id);
+      stopMotion();
+      if (winnerId && winnerId !== socket.id) {
+        showModal('Lose 😢', 'lose');
+      } else if (winnerId === socket.id) {
+        showModal('Win! 🎉', 'win');
+      }
+      // winnerId가 null이면 (display disconnected 등) 상태 유지
+    })
+
+    socket.on('roomPlayerCount', ({
+      room,
+      playerCount
+    }) => {
+      playerCountEl.textContent = `참여자: ${playerCount}명`;
     });
 
     socket.on('error', (e) => {
@@ -230,12 +342,13 @@
     let sendTimer = null;
 
     btnStart.onclick = () => {
-      startMotion();
-      btnStart.disabled = true;
-      btnStop.disabled = false;
+      // 게임이 시작되지 않았다면 startGame 보내기
+      socket.emit('startGame');
+      setStatus('게임 시작 요청 전송...');
     };
     btnStop.onclick = () => {
       stopMotion();
+      socket.disconnect();
       btnStart.disabled = false;
       btnStop.disabled = true;
       bar.style.width = '0%';

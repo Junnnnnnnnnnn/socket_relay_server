@@ -16,7 +16,6 @@ type RoomCode = string;
 interface Player {
   id: string;
   name?: string;
-  color: string;
   progress: number; // 0..100 (%)
 }
 
@@ -29,7 +28,6 @@ interface RoomState {
 }
 
 const rooms = new Map<RoomCode, RoomState>();
-const COLORS = ['#ff6b6b', '#4dabf7', '#51cf66', '#ffd43b'];
 
 @WebSocketGateway({ namespace: 'climb', cors: { origin: '*' } })
 export class ClimbSocketGateway
@@ -51,7 +49,7 @@ export class ClimbSocketGateway
     let state = rooms.get(room);
     if (!state) {
       // Recommended to have the display create the room first
-      state = { code: room, players: new Map(), status: 'idle', maxPlayers: 4 };
+      state = { code: room, players: new Map(), status: 'idle', maxPlayers: 2 };
       rooms.set(room, state);
     }
 
@@ -64,6 +62,10 @@ export class ClimbSocketGateway
       // Controller is finalized via joinRoom event (capacity is checked then)
       this.logger.log(`Controller connected (pending join) room ${room}`);
     }
+
+    // 방의 현재 플레이어 수 브로드캐스트 (controller만 카운트)
+    const playerCount = state.players.size;
+    this.server.to(room).emit('roomPlayerCount', { room, playerCount });
   }
 
   handleDisconnect(client: Socket) {
@@ -85,6 +87,13 @@ export class ClimbSocketGateway
         state.players.delete(client.id);
         this.logger.log(`Player ${client.id} left room ${state.code}`);
         this.broadcastState(state);
+
+        // 방의 현재 플레이어 수 브로드캐스트
+        const playerCount = state.players.size;
+        this.server
+          .to(state.code)
+          .emit('roomPlayerCount', { room: state.code, playerCount });
+
         // If the room is empty and there's no display, remove it
         if (!state.displayId && state.players.size === 0) {
           rooms.delete(state.code);
@@ -109,33 +118,46 @@ export class ClimbSocketGateway
       return;
     }
 
-    // Assign color
-    const color = COLORS[state.players.size % COLORS.length];
     state.players.set(client.id, {
       id: client.id,
       name: data.name || `P${state.players.size + 1}`,
-      color,
       progress: 0,
     });
 
-    client.emit('joinedRoom', { room: data.room });
+    // 방의 현재 플레이어 수 브로드캐스트
+    const playerCount = state.players.size;
+    client.emit('joinedRoom', { room: data.room, playerCount });
+    this.server
+      .to(data.room)
+      .emit('roomPlayerCount', { room: data.room, playerCount });
     this.broadcastState(state);
   }
 
   @SubscribeMessage('startGame')
   handleStartGame(@MessageBody() _: any, @ConnectedSocket() client: Socket) {
     const state = this.findRoomBySocket(client.id);
+
     if (!state) return;
-    if (state.displayId !== client.id) {
+    if (state.players.size < 2) {
       client.emit('error', {
-        code: 'NOT_DISPLAY',
-        message: 'Only display can start',
+        code: 'NOT_ENOUGH_PLAYERS',
+        message: 'Not enough players to start',
       });
       return;
     }
+    if (state.displayId == undefined || state.displayId == null) {
+      client.emit('error', {
+        code: 'NO_DISPLAY',
+        message: 'Display not found',
+      });
+      return;
+    }
+
     // Initialize
     for (const p of state.players.values()) p.progress = 0;
+
     state.status = 'running';
+
     this.server.to(state.code).emit('gameStarted');
     this.broadcastState(state);
   }
@@ -145,7 +167,6 @@ export class ClimbSocketGateway
     @MessageBody() data: { delta: number },
     @ConnectedSocket() client: Socket,
   ) {
-    console.log('DATA ::: ', data);
     const state = this.findRoomBySocket(client.id);
     if (!state || state.status !== 'running') return;
 
@@ -160,6 +181,7 @@ export class ClimbSocketGateway
       Math.min(100, player.progress + clamped * gain),
     );
 
+    console.log('player ::: ', player);
     // Victory condition check
     if (player.progress >= 100) {
       state.status = 'ended';
@@ -184,7 +206,6 @@ export class ClimbSocketGateway
       players: Array.from(state.players.values()).map((p) => ({
         id: p.id,
         name: p.name,
-        color: p.color,
         progress: p.progress,
       })),
     };
