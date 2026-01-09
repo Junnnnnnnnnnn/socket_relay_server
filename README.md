@@ -4,86 +4,44 @@
 [![Forks](https://img.shields.io/github/forks/Junnnnnnnnnnn/socket_relay_server?style=flat-square)](https://github.com/Junnnnnnnnnnn/socket_relay_server/network/members)
 [![Issues](https://img.shields.io/github/issues/Junnnnnnnnnnn/socket_relay_server?style=flat-square)](https://github.com/Junnnnnnnnnnn/socket_relay_server/issues)
 
-This project is a backend server, built with **NestJS** and **TypeScript**, that hosts a collection of real-time, interactive mini-games. It uses **Socket.io** to create a seamless, low-latency experience, allowing players to use their mobile phones as motion controllers.
+모바일 기기의 모션 센서를 이용하여 미니게임을 즐길 수 있는 실시간 멀티플레이 서버입니다.
 
-## Key Features
+## 핵심 원리
 
-- **Built with NestJS:** A modern, scalable Node.js framework.
-- **Real-time Multiplayer:** WebSocket-based communication via Socket.io for instant interaction.
-- **Multiple Games:** Features three distinct games, each running on its own dedicated namespace.
-- **Motion Control:** Designed to use mobile device motion sensors for immersive gameplay.
-- **Display & Controller Architecture:** Separates the game screen (Display) from the player's device (Controller) for a console-like experience.
+이 프로젝트는 **Display(화면)**와 **Controller(컨트롤러)**를 분리한 구조로 동작합니다.
 
-## The Games
+- **Display**: 게임 화면이 표시되는 큰 화면 (PC, TV 등)
+- **Controller**: 플레이어의 스마트폰 (모션 센서 데이터 전송)
 
-1.  **Baseball (`/baseball` namespace):** Step up to the plate and swing your phone to hit baseballs. Timing is everything!
-2.  **Climb (`/climb` namespace):** Shake your device to climb a virtual wall. The faster you shake, the higher you go!
-3.  **Dart (`/dart` namespace):** Take aim with your phone and flick your wrist to throw darts at the target.
+두 클라이언트는 **Socket.io**를 통해 실시간으로 연결되며, 서버가 중계 역할을 수행합니다.
 
-## System Architecture
+```
+[스마트폰 Controller] --모션 데이터--> [NestJS Server] --게임 상태--> [Display 화면]
+                                          ↓
+                                   룸(Room) 기반으로
+                                   여러 게임 세션 관리
+```
 
-The server connects two types of clients:
+## 게임 목록
 
-- **Display:** The main game screen, typically running on a desktop browser, smart TV, or public display. It shows the game visuals.
-- **Controller:** The player's mobile device, which sends motion data and commands to the server.
+1. **Baseball** - 야구공을 스윙해서 치는 게임
+2. **Climb** - 기기를 흔들어 벽을 오르는 게임
+3. **Dart** - 손목을 튕겨 다트를 던지는 게임
 
-Clients connect to the same game "room" to synchronize the action between the controller and the display.
+각 게임은 독립된 Socket.io **네임스페이스**(`/baseball`, `/climb`, `/dart`)로 분리되어 있습니다.
 
-## Prerequisites
+## 기술 스택
 
-To deploy and run this server, you will need:
+- **NestJS** + **TypeScript**: 백엔드 서버 프레임워크
+- **Socket.io**: WebSocket 기반 실시간 양방향 통신
+- **모션 센서 API**: 스마트폰의 가속도계, 자이로스코프 활용
 
-- Node.js (v18 or newer recommended)
-- A publicly accessible server or hosting platform (e.g., AWS, DigitalOcean, Heroku).
-- A public domain name for your server. **HTTPS is required** on both the client and server for mobile browsers to grant access to motion sensor data.
+## 실행 방법
 
-## Installation and Deployment
+```bash
+npm install
+npm run build
+npm run start:prod
+```
 
-1.  **Clone the repository:**
-
-    ```bash
-    git clone <your-repository-url>
-    cd socket_relay_server
-    ```
-
-2.  **Install dependencies:**
-
-    ```bash
-    npm install
-    ```
-
-3.  **Build the application:**
-
-    ```bash
-    npm run build
-    ```
-
-4.  **Run the server:**
-    ```bash
-    npm run start:prod
-    ```
-
-The server will start, ready to accept WebSocket connections on its configured port. Ensure your server is deployed to a public domain so clients can connect.
-
-## Client Setup
-
-This repository contains the **backend server only**. The client-side applications (the HTML/JS for the Display and Controller) were implemented with the assistance of ChatGPT and must be hosted separately.
-
-1.  **Host the Client Files:** Deploy the `display.html` and `controller.html` (and any associated CSS/JS) to a static web hosting service (like Vercel, Netlify, or a simple Nginx server).
-2.  **Configure the Endpoint:** In your client-side JavaScript, make sure you are connecting to the public domain of your deployed NestJS socket server.
-    ```javascript
-    // Example client-side connection
-    const socket = io('https://your-socket-server-domain.com/baseball');
-    ```
-3.  **Enable HTTPS:** Both the client-hosting server and this socket server must be served over HTTPS to use motion controls.
-
-## How to Play
-
-1.  Open the **Display** URL on a large screen (e.g., a laptop or TV).
-2.  Open the **Controller** URL on your smartphone.
-3.  Follow the on-screen instructions to connect your phone to the game room.
-4.  Use your phone's motion sensors to play the game!
-
----
-
-Enjoy the games!
+**주의**: HTTPS 환경이 필수입니다. 모바일 브라우저에서 모션 센서에 접근하려면 보안 연결이 필요합니다.
