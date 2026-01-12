@@ -9,6 +9,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { SocketService } from '../socket.service';
 
 interface ClientInfo {
   id: string;
@@ -21,6 +22,8 @@ interface ClientInfo {
 export class DartSocketGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
+  constructor(private readonly socketService: SocketService) {}
+
   @WebSocketServer() private readonly server: Server;
   private readonly roomClients = new Map<string, Set<string>>();
   private readonly clientInfoMap = new Map<string, ClientInfo>(); // socketId -> ClientInfo
@@ -168,6 +171,104 @@ export class DartSocketGateway
   @SubscribeMessage('aim-off')
   handleAimOff(@MessageBody() payload: { room: string; name: string }) {
     this.server.to(payload.room).emit('aim-off', payload);
+  }
+
+  /**
+   * 큐를 초기화합니다.
+   *
+   * @description
+   * - 대기열의 모든 참가자를 제거하고 큐를 빈 상태로 만듭니다.
+   * - 초기화 후 같은 프로젝트의 모든 클라이언트에게 'reset-queue' 이벤트를 브로드캐스트합니다.
+   *
+   * @param payload - 초기화할 큐가 속한 프로젝트 정보
+   * @param payload.project - 프로젝트 이름
+   *
+   * @emits reset-queue - 큐가 초기화되었음을 알리는 이벤트
+   */
+  @SubscribeMessage('reset-queue')
+  handleResetQueue(@MessageBody() payload: { project: string }) {
+    this.socketService.resetQueue('dart');
+    this.server.to(payload.project).emit('reset-queue', payload);
+  }
+
+  /**
+   * 현재 큐의 상태를 조회합니다.
+   *
+   * @description
+   * - 현재 대기열에 있는 모든 참가자의 목록을 반환합니다.
+   * - 요청한 클라이언트에게만 큐 상태를 전송합니다 (브로드캐스트 X).
+   *
+   * @param socket - 큐 상태를 요청한 클라이언트의 소켓
+   *
+   * @emits status-queue - 현재 큐의 소켓 ID 배열
+   */
+  @SubscribeMessage('status-queue')
+  handleStatusQueue(@ConnectedSocket() socket: Socket) {
+    socket.emit('status-queue', this.socketService.getQueue('dart'));
+  }
+
+  /**
+   * 클라이언트를 큐에 추가합니다.
+   *
+   * @description
+   * - 요청한 클라이언트의 소켓 ID를 대기열에 추가합니다.
+   * - 큐에 이미 존재하는 경우 중복 추가되지 않습니다 (SocketService에서 처리).
+   * - 큐 변경 후 모든 연결된 클라이언트에게 업데이트된 큐 상태를 브로드캐스트합니다.
+   *
+   * @param socket - 큐에 참가하려는 클라이언트의 소켓
+   *
+   * @emits status-queue - 업데이트된 큐의 소켓 ID 배열을 모든 클라이언트에게 전송
+   *
+   * @example
+   * // 클라이언트 측에서 큐에 참가
+   * socket.emit('join-queue');
+   *
+   * // 모든 클라이언트가 받는 이벤트
+   * socket.on('status-queue', (queue) => {
+   *   console.log('현재 큐:', queue);
+   * });
+   */
+  @SubscribeMessage('join-queue')
+  handleJoinQueue(@ConnectedSocket() socket: Socket) {
+    this.socketService.addToQueue('dart', socket.id);
+    const queue = this.socketService.getQueue('dart');
+
+    // 모든 클라이언트에게 브로드캐스트
+    this.server.emit('status-queue', queue);
+
+    console.log(`Socket ${socket.id} joined queue. Current queue:`, queue);
+  }
+
+  /**
+   * 클라이언트를 큐에서 제거합니다.
+   *
+   * @description
+   * - 요청한 클라이언트의 소켓 ID를 대기열에서 제거합니다.
+   * - 큐에 존재하지 않는 경우 아무 동작도 하지 않습니다 (SocketService에서 처리).
+   * - 큐 변경 후 모든 연결된 클라이언트에게 업데이트된 큐 상태를 브로드캐스트합니다.
+   *
+   * @param socket - 큐에서 나가려는 클라이언트의 소켓
+   *
+   * @emits status-queue - 업데이트된 큐의 소켓 ID 배열을 모든 클라이언트에게 전송
+   *
+   * @example
+   * // 클라이언트 측에서 큐에서 나가기
+   * socket.emit('leave-queue');
+   *
+   * // 모든 클라이언트가 받는 이벤트
+   * socket.on('status-queue', (queue) => {
+   *   console.log('현재 큐:', queue);
+   * });
+   */
+  @SubscribeMessage('leave-queue')
+  handleLeaveQueue(@ConnectedSocket() socket: Socket) {
+    this.socketService.removeFromQueue('dart', socket.id);
+    const queue = this.socketService.getQueue('dart');
+
+    // 모든 클라이언트에게 브로드캐스트
+    this.server.emit('status-queue', queue);
+
+    console.log(`Socket ${socket.id} left queue. Current queue:`, queue);
   }
 
   @SubscribeMessage('finish-game')

@@ -80,6 +80,7 @@
     <div class="card">Room: <span id="room"></span></div>
     <div id="qr" class="card"></div>
     <div class="card">스캔▶ 폰 컨트롤러 접속</div>
+    <div class="card" id="queueStatus">큐: []</div>
   </div>
   <div class="toast" id="toast">대기중…</div>
 
@@ -118,8 +119,15 @@
       socket.emit("joinRoom", {
         room
       });
+      // 큐 상태 요청
+      socket.emit("status-queue");
     });
     socket.on("connect_error", (err) => toast(`연결 실패: ${err.message}`));
+
+    // 큐 상태 업데이트 수신
+    socket.on("status-queue", (queue) => {
+      document.getElementById("queueStatus").textContent = `큐: [${queue.join(", ")}]`;
+    });
 
     // ---- Canvas 세팅 ----
     const canvas = document.getElementById("canvas");

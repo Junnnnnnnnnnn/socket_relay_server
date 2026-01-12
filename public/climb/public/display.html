@@ -189,6 +189,7 @@
   <div class="hdr">
     <div class="card">Room: <span id="room"></span></div>
     <div id="qr" class="card"></div>
+    <div class="card" id="queueStatus">큐: []</div>
     <div class="card">
       <div class="note" id="joinLink"></div>
       <button id="startBtn" class="btn" style="margin-top:6px">Start Game</button>
@@ -245,8 +246,15 @@
     socket.on('connect', () => {
       toast(`Connected (#${socket.id})`);
       statusEl.textContent = `Display connected. Room ${room}`;
+      // 큐 상태 요청
+      socket.emit("status-queue");
     });
     socket.on('connect_error', (e) => toast(`Connect error: ${e.message}`));
+
+    // 큐 상태 업데이트 수신
+    socket.on("status-queue", (queue) => {
+      document.getElementById("queueStatus").textContent = `큐: [${queue.join(", ")}]`;
+    });
 
     socket.on('stateUpdate', (state) => {
       statusEl.textContent = `${state.players.length} player(s) | ${state.status}`;

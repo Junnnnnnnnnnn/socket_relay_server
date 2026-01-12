@@ -107,8 +107,14 @@
         <button id="ready" class="primary" style="flex:1">Ready & Aim</button>
         <button id="cancel" style="flex:1">Cancel</button>
       </div>
+      <div class="row">
+        <button id="joinQueue" style="flex:1">큐 참가</button>
+        <button id="leaveQueue" style="flex:1">큐 나가기</button>
+        <button id="resetQueue">큐 초기화</button>
+      </div>
       <div class="muted">Ready 후, 폰을 <b>앞으로</b> 빠르게 휘둘러 던지세요.</div>
       <div class="status" id="status"></div>
+      <div class="muted" id="queueStatus">큐: []</div>
     </div>
   </div>
 
@@ -153,8 +159,15 @@
       socket.emit("joinRoom", {
         room: room()
       });
+      // 큐 상태 요청
+      socket.emit("status-queue");
     });
     socket.on("connect_error", (err) => setStatus(`연결 실패: ${err.message}`));
+
+    // 큐 상태 업데이트 수신
+    socket.on("status-queue", (queue) => {
+      document.getElementById("queueStatus").textContent = `큐: [${queue.join(", ")}]`;
+    });
 
     // ---- 모션 권한(iOS) ----
     document.getElementById("perm").onclick = async () => {
@@ -322,6 +335,24 @@
       setStatus(`던짐! power=${power.toFixed(2)} aim=(${lastAim.x.toFixed(2)}, ${lastAim.y.toFixed(2)})`);
       stopSensors();
     }
+
+    // 큐 관련 버튼 이벤트
+    document.getElementById("joinQueue").onclick = () => {
+      socket.emit("join-queue");
+      setStatus("큐 참가 요청");
+    };
+
+    document.getElementById("leaveQueue").onclick = () => {
+      socket.emit("leave-queue");
+      setStatus("큐 나가기 요청");
+    };
+
+    document.getElementById("resetQueue").onclick = () => {
+      socket.emit("reset-queue", {
+        project: room()
+      });
+      setStatus("큐 초기화 요청");
+    };
   </script>
 </body>
 
