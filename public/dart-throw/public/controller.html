@@ -11,6 +11,8 @@
       --fg: #e8f0ff;
       --card: #111a33;
       --muted: #8aa0c7;
+      --accent: #2a71ff;
+      --danger: #ff4d5e;
     }
 
     html,
@@ -59,8 +61,13 @@
     }
 
     button.primary {
-      background: #2a71ff;
-      border-color: #2a71ff
+      background: var(--accent);
+      border-color: var(--accent)
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed
     }
 
     .chips button {
@@ -80,6 +87,61 @@
 
     .status {
       min-height: 20px
+    }
+
+    .room-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px
+    }
+
+    .room-info .count {
+      font-weight: 600;
+      color: var(--accent)
+    }
+
+    .players {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 4px
+    }
+
+    .players li {
+      padding: 6px 10px;
+      background: #0a1430;
+      border-radius: 8px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .players li.me {
+      background: #1a2a5a;
+      border: 1px solid var(--accent)
+    }
+
+    .players .empty {
+      color: var(--muted);
+      font-style: italic;
+      justify-content: center
+    }
+
+    .full-banner {
+      background: var(--danger);
+      color: white;
+      padding: 12px;
+      border-radius: 12px;
+      text-align: center;
+      font-weight: 600;
+      display: none
+    }
+
+    .full-banner.show {
+      display: block
     }
   </style>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -111,10 +173,23 @@
         <button id="joinQueue" style="flex:1">큐 참가</button>
         <button id="leaveQueue" style="flex:1">큐 나가기</button>
         <button id="resetQueue">큐 초기화</button>
+        <button id="resetRoom">방 초기화</button>
       </div>
       <div class="muted">Ready 후, 폰을 <b>앞으로</b> 빠르게 휘둘러 던지세요.</div>
       <div class="status" id="status"></div>
       <div class="muted" id="queueStatus">큐: []</div>
+    </div>
+
+    <div class="full-banner" id="fullBanner">🚫 방이 가득 찼습니다 (최대 <span id="maxPlayers">4</span>명)</div>
+
+    <div class="card">
+      <div class="room-info">
+        <div><b>방 참가자</b></div>
+        <div class="count">현재 <span id="playerCount">0</span>명</div>
+      </div>
+      <ul id="playersList" class="players">
+        <li class="empty">아직 참가자가 없습니다</li>
+      </ul>
     </div>
   </div>
 
@@ -124,7 +199,7 @@
     const roomInput = document.getElementById("room");
     roomInput.value = (url.searchParams.get("room") || "DEMO").toUpperCase();
     const nameInput = document.getElementById("name");
-    nameInput.value = "Player" + Math.floor(Math.random() * 1000);
+    nameInput.value = url.searchParams.get("name") || ("Player" + Math.floor(Math.random() * 1000));
 
     let skin = "red";
     document.querySelectorAll("[data-skin]").forEach(b => {
@@ -145,6 +220,7 @@
 
     // ---- Socket ----
     const SOCKET_HOST = "your-socket-server";
+    // connect 시점에는 이름 전달 X (이름은 joinRoom에서만 전달)
     const socket = io(SOCKET_HOST, {
       path: "/socket", // Nginx에서 /socket → /socket.io 프록시
       query: {
@@ -154,15 +230,70 @@
       transports: ["websocket"],
     });
 
+    // 방 참가 요청 (이름 포함)
+    function joinRoom() {
+      socket.emit("joinRoom", {
+        room: room(),
+        name: playerName()
+      });
+    }
+
     socket.on("connect", () => {
       setStatus(`소켓 연결됨 (#${socket.id})`);
-      socket.emit("joinRoom", {
-        room: room()
-      });
-      // 큐 상태 요청
+      hideFullBanner();
+      joinRoom();
       socket.emit("status-queue");
     });
     socket.on("connect_error", (err) => setStatus(`연결 실패: ${err.message}`));
+    socket.on("disconnect", (reason) => setStatus(`연결 해제 (${reason})`));
+
+    // ---- 방 관련 이벤트 ----
+    socket.on("joinedRoom", (data) => {
+      // data = { room, playerCount, players: [{ socketId, name }] }
+      renderPlayers(data.players || [], data.playerCount);
+    });
+
+    socket.on("roomPlayerCount", (data) => {
+      // data = { room, playerCount } — 이름 리스트 없음. count만 갱신
+      document.getElementById("playerCount").textContent = data.playerCount ?? 0;
+    });
+
+    socket.on("roomFull", (data) => {
+      // data = { room, maxPlayers }
+      document.getElementById("maxPlayers").textContent = data.maxPlayers ?? 4;
+      document.getElementById("fullBanner").classList.add("show");
+      setStatus(`방 ${data.room}은 가득 찼습니다 (최대 ${data.maxPlayers}명)`);
+      disableGameActions(true);
+    });
+
+    function hideFullBanner() {
+      document.getElementById("fullBanner").classList.remove("show");
+      disableGameActions(false);
+    }
+
+    function disableGameActions(disabled) {
+      ["ready", "joinQueue", "leaveQueue"].forEach(id => {
+        document.getElementById(id).disabled = disabled;
+      });
+    }
+
+    function renderPlayers(players, count) {
+      const ul = document.getElementById("playersList");
+      const countEl = document.getElementById("playerCount");
+      countEl.textContent = count ?? players.length;
+      ul.innerHTML = "";
+      if (!players.length) {
+        ul.innerHTML = '<li class="empty">아직 참가자가 없습니다</li>';
+        return;
+      }
+      players.forEach((p, i) => {
+        const li = document.createElement("li");
+        const isMe = p.socketId === socket.id;
+        if (isMe) li.classList.add("me");
+        li.textContent = `${i + 1}. ${p.name}${isMe ? " (나)" : ""}`;
+        ul.appendChild(li);
+      });
+    }
 
     // 큐 상태 업데이트 수신
     socket.on("status-queue", (queue) => {
@@ -210,7 +341,6 @@
       prevMag = 0;
     let aimReady = false;
 
-    // ✅ 최신 중력 Z값 (face-up/face-down 판별용)
     let gravityZ = 0;
 
     function norm(v, a, b) {
@@ -227,22 +357,16 @@
       aimReady = false;
       setStatus("조준 중… 앞으로 휘두르면 던집니다.");
 
-      // 방 재보장
-      socket.emit("joinRoom", {
-        room: room()
-      });
+      // 방 재보장 (이름 포함)
+      joinRoom();
 
-      // 기울기 → 조준(-1..1) & Ready 중에만 30Hz로 aim 전송
       handleOrient = (e) => {
-        let g = e.gamma ?? 0; // 좌우 -90..90
-        let b = e.beta ?? 0; // 앞뒤 -180..180
+        let g = e.gamma ?? 0;
+        let b = e.beta ?? 0;
 
-        // 기본 맵핑
         const xNorm = norm(g, -45, 45);
         const yNorm = norm(b, 10, 80);
 
-        // ✅ 화면이 위로 향하면 상하 반전
-        //   - 대략 z가 큰 절대값이며 음수면(face-up)로 간주 (기기에 따라 부호가 반대라면 > 0로 바꿔보세요)
         const faceUp = Math.abs(gravityZ) > 4 && gravityZ < 0;
         lastAim.x = xNorm;
         lastAim.y = faceUp ? -yNorm : yNorm;
@@ -265,14 +389,13 @@
       };
       window.addEventListener("deviceorientation", handleOrient);
 
-      // 가속도 → 파워(던지기 트리거) + ✅ gravityZ 업데이트
       handleMotion = (e) => {
         const ag = e.accelerationIncludingGravity || {
           x: 0,
           y: 0,
           z: 0
         };
-        gravityZ = ag.z || 0; // ← 최신 z중력 보관 (face-up/face-down 판별)
+        gravityZ = ag.z || 0;
 
         const a = e.acceleration || ag;
         const mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
@@ -318,7 +441,6 @@
       if (!ready) return;
       ready = false;
 
-      // 파워 0..1 맵핑 (보정 피크 기준)
       const power = Math.max(0, Math.min(1, accPeak / 25));
 
       const payload = {
@@ -336,7 +458,6 @@
       stopSensors();
     }
 
-    // 큐 관련 버튼 이벤트
     document.getElementById("joinQueue").onclick = () => {
       socket.emit("join-queue");
       setStatus("큐 참가 요청");
@@ -352,6 +473,13 @@
         project: room()
       });
       setStatus("큐 초기화 요청");
+    };
+
+    document.getElementById("resetRoom").onclick = () => {
+      const r = room();
+      if (!confirm(`방 ${r}의 모든 참가자를 연결 해제합니다. 계속하시겠습니까?`)) return;
+      socket.emit("disconnect-room", { room: r });
+      setStatus(`방 ${r} 초기화 요청`);
     };
   </script>
 </body>

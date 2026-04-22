@@ -9,6 +9,7 @@
     :root {
       --bg: #0b1020;
       --fg: #e8f0ff;
+      --accent: #4da3ff;
     }
 
     html,
@@ -30,7 +31,9 @@
       top: 20px;
       display: flex;
       gap: 12px;
-      align-items: center
+      align-items: flex-start;
+      flex-wrap: wrap;
+      max-width: calc(100% - 40px);
     }
 
     .card {
@@ -52,10 +55,66 @@
       letter-spacing: 1px
     }
 
+    #players-card {
+      min-width: 200px;
+    }
+
+    #players-card .title {
+      font-size: 13px;
+      color: #8aa0c7;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px
+    }
+
+    #players-card .count {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    #players {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    #players li {
+      font-size: 14px;
+      padding: 4px 8px;
+      background: #0a1430;
+      border-radius: 6px;
+    }
+
+    #players .empty {
+      color: #8aa0c7;
+      font-style: italic;
+      text-align: center;
+    }
+
+    #resetRoom {
+      background: #9a1d2b;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    #resetRoom:hover {
+      background: #b4243a;
+    }
+
     #canvas {
       position: fixed;
       inset: 0;
-      display: block
+      display: block;
+      z-index: -1;
     }
 
     .toast {
@@ -81,6 +140,18 @@
     <div id="qr" class="card"></div>
     <div class="card">스캔▶ 폰 컨트롤러 접속</div>
     <div class="card" id="queueStatus">큐: []</div>
+    <div class="card" id="players-card">
+      <div class="title">
+        <span>방 참가자</span>
+        <span class="count"><span id="playerCount">0</span>명</span>
+      </div>
+      <ul id="players">
+        <li class="empty">대기 중…</li>
+      </ul>
+    </div>
+    <div class="card">
+      <button id="resetRoom">방 초기화</button>
+    </div>
   </div>
   <div class="toast" id="toast">대기중…</div>
 
@@ -105,7 +176,11 @@
       height: 120
     });
 
-    // ---- Socket (도메인 + /socket 경로 프록시) ----
+    // ---- Socket ----
+    // Display는 관찰자(observer)로서 joinRoom을 호출하지 않습니다.
+    // - connect 시점에 ?room=... query가 있으면 서버가 socket.io 내부 room에 자동 join시켜
+    //   this.server.to(room).emit(...) 브로드캐스트를 받을 수 있습니다.
+    // - joinRoom을 호출하지 않으므로 참가자 리스트에 포함되지 않고, 4명 제한에도 포함되지 않습니다.
     const socket = io("your-socket-server", {
       path: "/socket",
       query: {
@@ -114,20 +189,57 @@
       transports: ["websocket"],
       reconnection: true,
     });
+
     socket.on("connect", () => {
       toast(`소켓 연결됨 (#${socket.id})`);
-      socket.emit("joinRoom", {
-        room
-      });
-      // 큐 상태 요청
       socket.emit("status-queue");
     });
     socket.on("connect_error", (err) => toast(`연결 실패: ${err.message}`));
+    socket.on("disconnect", (reason) => toast(`연결 해제: ${reason}`));
+
+    // ---- 방 관련 이벤트 수신 ----
+    socket.on("joinedRoom", (data) => {
+      // data = { room, playerCount, players: [{ socketId, name }] }
+      renderPlayers(data.players || [], data.playerCount);
+    });
+
+    socket.on("roomPlayerCount", (data) => {
+      // data = { room, playerCount } — 이름 리스트 없음. count만 갱신
+      document.getElementById("playerCount").textContent = data.playerCount ?? 0;
+    });
+
+    socket.on("roomFull", (data) => {
+      // 디스플레이가 roomFull을 받는 경우는 드물지만(joinRoom을 안 부르므로),
+      // handleConnection 단계의 capacity 체크에 걸리면 올 수 있음
+      toast(`⚠️ 방 ${data.room}이 가득 찼습니다 (최대 ${data.maxPlayers}명)`);
+    });
+
+    function renderPlayers(players, count) {
+      const ul = document.getElementById("players");
+      document.getElementById("playerCount").textContent = count ?? players.length;
+      ul.innerHTML = "";
+      if (!players.length) {
+        ul.innerHTML = '<li class="empty">대기 중…</li>';
+        return;
+      }
+      players.forEach((p, i) => {
+        const li = document.createElement("li");
+        li.textContent = `${i + 1}. ${p.name}`;
+        ul.appendChild(li);
+      });
+    }
 
     // 큐 상태 업데이트 수신
     socket.on("status-queue", (queue) => {
       document.getElementById("queueStatus").textContent = `큐: [${queue.join(", ")}]`;
     });
+
+    // ---- 방 초기화 (해당 룸의 모든 소켓 강제 disconnect) ----
+    document.getElementById("resetRoom").onclick = () => {
+      if (!confirm(`방 ${room}의 모든 참가자를 연결 해제합니다. 계속하시겠습니까?`)) return;
+      socket.emit("disconnect-room", { room });
+      toast(`방 ${room} 초기화 요청`);
+    };
 
     // ---- Canvas 세팅 ----
     const canvas = document.getElementById("canvas");
@@ -263,7 +375,6 @@
       requestAnimationFrame(animate);
       drawBoard();
 
-      // 진행 중 다트
       for (const d of darts) {
         d.t = Math.min(1, (performance.now() - d.start) / d.dur);
         const e = easeOutCubic(d.t);
@@ -280,7 +391,6 @@
       }
       darts = darts.filter(d => performance.now() - d.start < d.dur + 1200);
 
-      // 조준 크로스헤어
       drawAllCrosshairs();
     }
     requestAnimationFrame(animate);
@@ -290,13 +400,10 @@
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(-Math.PI / 2);
-      // 깃털
       ctx.fillStyle = skin === "red" ? "#ff4d4d" : skin === "blue" ? "#4da3ff" : "#ffd24d";
       ctx.fillRect(-sz * 0.6, -sz * 0.20, sz * 0.35, sz * 0.40);
-      // 몸체
       ctx.fillStyle = "#cbd5e1";
       ctx.fillRect(-sz * 0.2, -5, sz * 0.9, 10);
-      // 팁
       ctx.fillStyle = "#e2e8f0";
       ctx.beginPath();
       ctx.moveTo(sz * 0.7, 0);
@@ -374,7 +481,6 @@
       } = center();
       const R = Math.min(canvas.width, canvas.height) * 0.38;
 
-      // -1..1 → 보드 좌표
       const tx = cx + (Math.max(-1, Math.min(1, aim.x)) * R * 0.95);
       const ty = cy + (Math.max(-1, Math.min(1, aim.y)) * R * 0.95);
 
@@ -403,13 +509,12 @@
       const now = performance.now();
       for (const [name, a] of aims) {
         const age = now - (a.ts || 0);
-        const alpha = Math.max(0, 1 - age / 800); // 0.8초에 걸쳐 페이드
+        const alpha = Math.max(0, 1 - age / 800);
         if (alpha <= 0) {
           aims.delete(name);
           continue;
         }
 
-        // EMA 스무딩
         a.sx = a.sx == null ? a.tx : a.sx + (a.tx - a.sx) * 0.3;
         a.sy = a.sy == null ? a.ty : a.sy + (a.ty - a.sy) * 0.3;
 
@@ -424,12 +529,10 @@
       ctx.lineWidth = 2;
       ctx.strokeStyle = color;
 
-      // 링
       ctx.beginPath();
       ctx.arc(x, y, 12, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 십자선
       ctx.beginPath();
       ctx.moveTo(x - 18, y);
       ctx.lineTo(x - 6, y);
@@ -441,7 +544,6 @@
       ctx.lineTo(x, y + 18);
       ctx.stroke();
 
-      // 이름 라벨
       if (name) {
         ctx.font = '14px system-ui, sans-serif';
         const m = ctx.measureText(name);

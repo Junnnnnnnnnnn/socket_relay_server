@@ -83,12 +83,10 @@ export class BaseballSocketGateway
       // If display disconnects, end game and clean up room
       if (state.displayId === client.id) {
         this.stopSpawning(state);
-        this.server
-          .to(state.code)
-          .emit('gameOver', {
-            reason: 'display_disconnected',
-            snapshot: this.snapshot(state),
-          });
+        this.server.to(state.code).emit('gameOver', {
+          reason: 'display_disconnected',
+          snapshot: this.snapshot(state),
+        });
         rooms.delete(state.code);
         continue;
       }
@@ -136,13 +134,11 @@ export class BaseballSocketGateway
       score: state.batter?.score ?? 0,
     };
     client.emit('joinedRoom', { room: data.room, role: 'batter' });
-    this.server
-      .to(state.code)
-      .emit('batterReady', {
-        id: client.id,
-        name: state.batter.name,
-        color: state.batter.color,
-      });
+    this.server.to(state.code).emit('batterReady', {
+      id: client.id,
+      name: state.batter.name,
+      color: state.batter.color,
+    });
     this.pushState(state);
   }
 
