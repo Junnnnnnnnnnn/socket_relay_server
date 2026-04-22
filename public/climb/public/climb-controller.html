@@ -1,0 +1,983 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Climb Socket API – Controller 문서</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --bg2: #070b1a;
+      --fg: #e8f0ff;
+      --muted: #8aa0c7;
+      --card: #111a33;
+      --card2: #0f1730;
+      --border: #22325a;
+      --accent: #2a71ff;
+      --accent2: #4da3ff;
+      --ok: #2ecc71;
+      --warn: #f1c40f;
+      --danger: #ff4d5e;
+      --code: #0a1430;
+      --emit: #2a71ff;
+      --listen: #2ecc71;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+      line-height: 1.55;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+      background: rgba(11, 16, 32, 0.85);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+    }
+
+    header .inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    header .tag {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--emit);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    header .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      margin-right: 6px;
+    }
+
+    header .dot.on {
+      background: var(--ok);
+      box-shadow: 0 0 8px var(--ok);
+    }
+
+    header .dot.err {
+      background: var(--danger);
+    }
+
+    .conn-status {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      aside {
+        position: static !important;
+      }
+    }
+
+    aside {
+      position: sticky;
+      top: 72px;
+      align-self: start;
+      display: grid;
+      gap: 12px;
+      max-height: calc(100vh - 92px);
+      overflow-y: auto;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .card h2 {
+      margin: 0 0 6px 0;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    input,
+    button,
+    select,
+    textarea {
+      font-size: 14px;
+      border-radius: 10px;
+      border: 1px solid #2a3a66;
+      background: var(--code);
+      color: var(--fg);
+      padding: 9px 12px;
+      font-family: inherit;
+      width: 100%;
+    }
+
+    textarea {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+      resize: vertical;
+      min-height: 70px;
+    }
+
+    button {
+      cursor: pointer;
+      width: auto;
+      font-weight: 600;
+      transition: transform 0.05s, filter 0.1s;
+    }
+
+    button:hover {
+      filter: brightness(1.15);
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    button.emit {
+      background: var(--emit);
+      border-color: var(--emit);
+      color: #fff;
+    }
+
+    button.ghost {
+      background: transparent;
+    }
+
+    button.danger {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .grid3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    code,
+    pre {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12.5px;
+    }
+
+    pre {
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 8px 0 0;
+      white-space: pre;
+    }
+
+    code.inline {
+      background: var(--code);
+      padding: 2px 7px;
+      border-radius: 6px;
+      color: var(--accent2);
+    }
+
+    .event {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .event:first-of-type {
+      border-top: 0;
+      padding-top: 0;
+      margin-top: 0;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    .pill.emit {
+      background: rgba(42, 113, 255, 0.18);
+      color: #7aa8ff;
+      border: 1px solid rgba(42, 113, 255, 0.45);
+    }
+
+    .pill.listen {
+      background: rgba(46, 204, 113, 0.15);
+      color: #59d991;
+      border: 1px solid rgba(46, 204, 113, 0.45);
+    }
+
+    .event-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .event-title code {
+      background: var(--code);
+      padding: 3px 9px;
+      border-radius: 6px;
+      color: var(--accent2);
+      font-size: 14px;
+    }
+
+    .desc {
+      color: var(--muted);
+      font-size: 13.5px;
+      margin: 4px 0 10px;
+    }
+
+    .log {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      height: 240px;
+      overflow-y: auto;
+      font-size: 11.5px;
+      line-height: 1.5;
+    }
+
+    .log-entry {
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      word-break: break-word;
+    }
+
+    .log-entry .time {
+      color: var(--muted);
+      margin-right: 6px;
+    }
+
+    .log-entry .dir-out {
+      color: #7aa8ff;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .log-entry .dir-in {
+      color: #59d991;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .log-entry .dir-sys {
+      color: var(--warn);
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .log-entry .ev {
+      color: var(--fg);
+      font-weight: 600;
+    }
+
+    .log-entry .payload {
+      color: var(--muted);
+    }
+
+    .hint {
+      background: rgba(241, 196, 15, 0.08);
+      border-left: 3px solid var(--warn);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: #f0e3b9;
+      margin: 8px 0;
+    }
+
+    .toc {
+      font-size: 13px;
+    }
+
+    .toc a {
+      display: block;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 3px 0;
+      border-left: 2px solid transparent;
+      padding-left: 8px;
+      margin-left: -10px;
+    }
+
+    .toc a:hover {
+      color: var(--fg);
+      border-color: var(--accent);
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .live-badge .ping {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--ok);
+      animation: ping 1.5s infinite;
+    }
+
+    @keyframes ping {
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    .event-actions {
+      margin-top: 10px;
+      padding: 10px;
+      background: var(--card2);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .event-actions label {
+      margin-bottom: 2px;
+    }
+
+    .shake-btn {
+      padding: 30px 20px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #2a71ff, #4da3ff);
+      border: 0;
+      color: #fff;
+      width: 100%;
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    .shake-btn:active {
+      transform: scale(0.97);
+      filter: brightness(0.9);
+    }
+
+    .progress-self {
+      position: relative;
+      height: 14px;
+      background: var(--code);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .progress-self > div {
+      height: 100%;
+      background: linear-gradient(90deg, #2a71ff, #4da3ff);
+      width: 0%;
+      transition: width 0.15s;
+    }
+
+    .status-chip {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-idle {
+      background: rgba(138, 160, 199, 0.18);
+      color: var(--muted);
+    }
+
+    .status-running {
+      background: rgba(46, 204, 113, 0.18);
+      color: #59d991;
+    }
+
+    .status-ended {
+      background: rgba(255, 77, 94, 0.18);
+      color: #ff8a95;
+    }
+
+    .err-banner {
+      background: rgba(255, 77, 94, 0.12);
+      border-left: 3px solid var(--danger);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #ffb3ba;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="inner">
+      <span class="tag">CONTROLLER</span>
+      <h1>Climb Socket API – Controller 문서</h1>
+      <div class="conn-status" style="margin-left:auto">
+        <span class="dot" id="dot"></span>
+        <span id="status">연결 안 됨</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div>
+      <!-- ========== Overview ========== -->
+      <section class="card" id="overview">
+        <h2>개요</h2>
+        <p class="desc" style="margin-bottom:6px">
+          Climb Controller는 플레이어가 <b>흔들어(shake) 올라가는 단말</b>입니다.
+          서버의 <code class="inline">climb</code> 네임스페이스에 <code class="inline">role=controller</code>로 접속하여
+          <span class="pill emit">EMIT</span> 으로 입력을 보내고,
+          <span class="pill listen">LISTEN</span> 으로 방 상태·진행도·게임 종료를 받습니다.
+        </p>
+
+        <h3 style="margin-top:14px">연결 정보</h3>
+        <pre><code>URL:       https://socket-relay.zipshowkorea.com/climb
+Transport: WebSocket / Polling (auto)
+Library:   socket.io-client@4.x
+Query:     ?room=&lt;방 코드&gt;          (필수)
+           &amp;role=controller           (기본값)</code></pre>
+
+        <div class="hint">
+          <b>중요</b>: 방은 <b>Display가 먼저</b> <code class="inline">role=display</code>로
+          접속하여 만들어야 합니다. Controller만 접속하면 임시 방이 만들어지지만
+          <code class="inline">startGame</code>에서 <code class="inline">NO_DISPLAY</code>
+          오류가 발생합니다.
+        </div>
+
+        <h3 style="margin-top:14px">기본 사용 예시</h3>
+        <pre><code>import io from 'socket.io-client';
+
+const socket = io('https://socket-relay.zipshowkorea.com/climb', {
+  query: { room: 'room-1', role: 'controller' },
+});
+
+socket.on('connect', () =&gt; {
+  socket.emit('joinRoom', { room: 'room-1', name: 'Junn' });
+});
+
+socket.on('joinedRoom', (d) =&gt; console.log('joined', d));
+socket.on('gameStarted', () =&gt; startShakeLoop());
+socket.on('stateUpdate', (d) =&gt; renderProgress(d.players));
+socket.on('gameOver', (d) =&gt; showResult(d));</code></pre>
+      </section>
+
+      <!-- ========== EMIT Events ========== -->
+      <section class="card" style="margin-top:16px">
+        <h2><span class="pill emit">EMIT</span> Controller → Server</h2>
+        <p class="desc">컨트롤러가 서버로 보내는 이벤트. 버튼을 눌러 실제 서버로 전송해볼 수 있습니다.</p>
+
+        <!-- joinRoom -->
+        <div class="event" id="emit-joinRoom">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>joinRoom</code></div>
+          <p class="desc">방에 실제 플레이어로 등록. 최대 <b>4명</b>. 방 없으면
+            <code class="inline">NO_SUCH_ROOM</code>, 꽉 차면 <code class="inline">ROOM_FULL</code>.</p>
+          <pre><code>// payload
+{ room: string, name?: string }   // name 없으면 P1/P2/... 자동 부여
+
+socket.emit('joinRoom', { room: 'room-1', name: 'Junn' });</code></pre>
+          <div class="event-actions">
+            <div class="grid2">
+              <div>
+                <label>room</label>
+                <input id="e-jr-room" placeholder="room-1" />
+              </div>
+              <div>
+                <label>name</label>
+                <input id="e-jr-name" placeholder="Junn" />
+              </div>
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button class="emit" onclick="sendJoinRoom()">emit joinRoom</button>
+              <span class="live-badge"><span class="ping"></span> 실시간 서버로 전송</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- startGame -->
+        <div class="event" id="emit-startGame">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>startGame</code></div>
+          <p class="desc">게임 시작. <b>2명 이상</b>이어야 하고 Display가 방에 있어야 함.
+            그렇지 않으면 <code class="inline">NOT_ENOUGH_PLAYERS</code> /
+            <code class="inline">NO_DISPLAY</code> 오류.</p>
+          <pre><code>socket.emit('startGame');   // no payload</code></pre>
+          <div class="event-actions">
+            <button class="emit" onclick="socketEmit('startGame')">emit startGame</button>
+          </div>
+        </div>
+
+        <!-- shake -->
+        <div class="event" id="emit-shake">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>shake</code></div>
+          <p class="desc">흔들림 샘플. 서버가 <code class="inline">delta</code>를 0~20으로 clamp 후
+            <code class="inline">gain=0.05</code>로 스케일해 progress(%)에 누적.
+            100%에 도달하면 <code class="inline">gameOver</code>.</p>
+          <pre><code>// payload
+{ delta: number }   // 0..20 (서버에서 clamp)
+
+socket.emit('shake', { delta: 15 });</code></pre>
+          <div class="event-actions">
+            <label style="margin-bottom:6px">수동 delta</label>
+            <div class="grid2">
+              <input id="e-sh-delta" type="number" step="0.1" min="0" max="20" value="15" />
+              <button class="emit" onclick="sendShake()">emit shake</button>
+            </div>
+            <div style="margin-top:10px">
+              <label>빠른 연속 전송 (게임 시뮬레이터)</label>
+              <button class="shake-btn" id="shake-btn">🫨 SHAKE (꾹 누르기)</button>
+              <div class="row" style="margin-top:8px; font-size:12px; color:var(--muted)">
+                <span>내 progress</span>
+                <span id="pct">0%</span>
+                <span class="status-chip status-idle" id="gs">idle</span>
+              </div>
+              <div class="progress-self" style="margin-top:6px">
+                <div id="bar"></div>
+              </div>
+              <div style="font-size:11px; color:var(--muted); margin-top:6px">
+                꾹 누르는 동안 <code class="inline">{ delta: 15 }</code>를 100ms 간격으로 전송.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- join-queue -->
+        <div class="event" id="emit-join-queue">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>join-queue</code></div>
+          <p class="desc">대기열에 자신의 소켓 ID 추가. 서버는 전역으로
+            <code class="inline">status-queue</code> 브로드캐스트.</p>
+          <pre><code>socket.emit('join-queue');   // no payload</code></pre>
+          <div class="event-actions">
+            <button class="emit" onclick="socketEmit('join-queue')">emit join-queue</button>
+          </div>
+        </div>
+
+        <!-- leave-queue -->
+        <div class="event" id="emit-leave-queue">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>leave-queue</code></div>
+          <p class="desc">대기열에서 나간다.</p>
+          <pre><code>socket.emit('leave-queue');  // no payload</code></pre>
+          <div class="event-actions">
+            <button class="emit" onclick="socketEmit('leave-queue')">emit leave-queue</button>
+          </div>
+        </div>
+
+        <!-- status-queue -->
+        <div class="event" id="emit-status-queue">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>status-queue</code></div>
+          <p class="desc">큐 스냅샷을 <b>요청자에게만</b> 반환.</p>
+          <pre><code>socket.emit('status-queue');
+socket.on('status-queue', (queue) =&gt; console.log(queue));</code></pre>
+          <div class="event-actions">
+            <button class="emit" onclick="socketEmit('status-queue')">emit status-queue</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== LISTEN Events ========== -->
+      <section class="card" style="margin-top:16px">
+        <h2><span class="pill listen">LISTEN</span> Server → Controller</h2>
+        <p class="desc">아래 이벤트는 서버에서 자동으로 들어옵니다. 오른쪽 로그에서 실시간 확인.</p>
+
+        <div class="event">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>error</code></div>
+          <p class="desc">서버 측 오류. 코드별로 분기 처리하세요.</p>
+          <pre><code>{ code: string, message: string }
+
+// code 종류:
+// - NO_ROOM            연결 시 room 쿼리 누락 (직후 disconnect)
+// - NO_SUCH_ROOM       joinRoom 시 방 없음
+// - ROOM_FULL          joinRoom 시 정원 초과 (max 4)
+// - NOT_ENOUGH_PLAYERS startGame 시 플레이어 &lt;2
+// - NO_DISPLAY         startGame 시 Display 미접속</code></pre>
+        </div>
+
+        <div class="event">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>joinedRoom</code></div>
+          <p class="desc">참가자 입장/퇴장 시 방 전체에 발행. 참가자 리스트 포함.</p>
+          <pre><code>{
+  room: string,
+  playerCount: number,
+  players: Array&lt;{ socketId: string, name: string }&gt;
+}</code></pre>
+        </div>
+
+        <div class="event">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>roomPlayerCount</code></div>
+          <p class="desc">인원 수만 경량으로 받을 때. 연결 직후/입퇴장 시 발행.</p>
+          <pre><code>{ room: string, playerCount: number }</code></pre>
+        </div>
+
+        <div class="event">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>gameStarted</code></div>
+          <p class="desc">게임 시작 알림. Controller는 이때부터 shake 입력을 전송.</p>
+          <pre><code>// no payload</code></pre>
+        </div>
+
+        <div class="event">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>stateUpdate</code></div>
+          <p class="desc">참가/퇴장·shake·startGame 등 방 상태가 바뀔 때마다 발행.
+            본인 + 다른 플레이어 progress 렌더링용.</p>
+          <pre><code>{
+  status: 'idle' | 'running' | 'ended',
+  players: Array&lt;{ id: string, name?: string, progress: number }&gt;  // progress 0..100
+}</code></pre>
+        </div>
+
+        <div class="event">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>gameOver</code></div>
+          <p class="desc">승자 결정 또는 Display 이탈 시 방 전체에 발행.</p>
+          <pre><code>{
+  winnerId: string | null,   // null이면 비정상 종료
+  snapshot: { status, players },
+  reason?: 'display_disconnected'
+}</code></pre>
+        </div>
+
+        <div class="event">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>status-queue</code></div>
+          <p class="desc">큐 변경 시 모든 클라이언트 브로드캐스트. 요청 응답에도 사용.</p>
+          <pre><code>string[]   // socketId 배열</code></pre>
+        </div>
+      </section>
+    </div>
+
+    <!-- ========== Live Playground ========== -->
+    <aside>
+      <section class="card">
+        <h2>🧗 Live Playground</h2>
+        <label>Server URL</label>
+        <input id="url" value="https://socket-relay.zipshowkorea.com/climb" />
+        <div class="grid2" style="margin-top:8px">
+          <div>
+            <label>room</label>
+            <input id="room" value="room-1" />
+          </div>
+          <div>
+            <label>name</label>
+            <input id="name" value="Junn" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="btn-connect" onclick="connect()">Connect</button>
+          <button class="danger ghost" id="btn-disconnect" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+        <div class="hint" style="margin-top:10px">
+          Connect 시 <code class="inline">role=controller</code>로 접속합니다.
+          반드시 Display가 먼저 같은 room으로 접속해야 <code class="inline">startGame</code>이 성공합니다.
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-top:6px">
+          socketId: <code class="inline" id="sid">-</code>
+        </div>
+        <div id="err" style="display:none" class="err-banner"></div>
+      </section>
+
+      <section class="card">
+        <h3>이벤트 로그</h3>
+        <div class="log" id="log"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="ghost" onclick="clearLog()">Clear</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>바로 가기</h3>
+        <nav class="toc">
+          <a href="#overview">개요</a>
+          <a href="#emit-joinRoom">EMIT · joinRoom</a>
+          <a href="#emit-startGame">EMIT · startGame</a>
+          <a href="#emit-shake">EMIT · shake</a>
+          <a href="#emit-join-queue">EMIT · join-queue</a>
+          <a href="#emit-leave-queue">EMIT · leave-queue</a>
+          <a href="#emit-status-queue">EMIT · status-queue</a>
+        </nav>
+      </section>
+    </aside>
+  </main>
+
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"
+    integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+"
+    crossorigin="anonymous"></script>
+  <script>
+    let socket = null;
+    let shakeTimer = null;
+
+    const $ = (id) => document.getElementById(id);
+    const logEl = $('log');
+
+    const LISTEN_EVENTS = [
+      'error',
+      'joinedRoom',
+      'roomPlayerCount',
+      'gameStarted',
+      'stateUpdate',
+      'gameOver',
+      'status-queue',
+    ];
+
+    function log(dir, ev, payload) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      const dirCls = dir === 'IN' ? 'dir-in' : dir === 'OUT' ? 'dir-out' : 'dir-sys';
+      const arrow = dir === 'IN' ? '←' : dir === 'OUT' ? '→' : '·';
+      const t = new Date().toLocaleTimeString();
+      const payloadStr = payload === undefined
+        ? ''
+        : typeof payload === 'string'
+          ? payload
+          : JSON.stringify(payload);
+      entry.innerHTML =
+        `<span class="time">${t}</span>` +
+        `<span class="${dirCls}">${arrow}</span> ` +
+        `<span class="ev">${ev}</span> ` +
+        `<span class="payload">${escapeHtml(payloadStr)}</span>`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function clearLog() { logEl.innerHTML = ''; }
+
+    function setStatus(state) {
+      const dot = $('dot'), status = $('status');
+      dot.className = 'dot';
+      if (state === 'on') { dot.classList.add('on'); status.textContent = '연결됨'; }
+      else if (state === 'err') { dot.classList.add('err'); status.textContent = '오류'; }
+      else { status.textContent = '연결 안 됨'; }
+    }
+
+    function setGameStatus(s) {
+      const el = $('gs');
+      el.className = 'status-chip ' + (s === 'running' ? 'status-running' : s === 'ended' ? 'status-ended' : 'status-idle');
+      el.textContent = s;
+    }
+
+    function showErr(msg) {
+      const el = $('err');
+      el.textContent = msg;
+      el.style.display = '';
+      clearTimeout(showErr._t);
+      showErr._t = setTimeout(() => el.style.display = 'none', 5000);
+    }
+
+    function connect() {
+      if (socket) socket.disconnect();
+      const url = $('url').value.trim();
+      const room = $('room').value.trim();
+      try {
+        socket = io(url, {
+          transports: ['websocket', 'polling'],
+          query: { room, role: 'controller' },
+          forceNew: true,
+        });
+      } catch (e) {
+        log('SYS', 'connect-error', e.message);
+        return;
+      }
+
+      socket.on('connect', () => {
+        setStatus('on');
+        $('btn-connect').disabled = true;
+        $('btn-disconnect').disabled = false;
+        $('sid').textContent = socket.id;
+        log('SYS', 'connect', { id: socket.id });
+      });
+
+      socket.on('disconnect', (reason) => {
+        setStatus('off');
+        $('btn-connect').disabled = false;
+        $('btn-disconnect').disabled = true;
+        $('sid').textContent = '-';
+        log('SYS', 'disconnect', reason);
+        stopShake();
+      });
+
+      socket.on('connect_error', (err) => {
+        setStatus('err');
+        log('SYS', 'connect_error', err.message);
+      });
+
+      LISTEN_EVENTS.forEach(ev => {
+        socket.on(ev, (data) => {
+          log('IN', ev, data);
+
+          if (ev === 'error') {
+            showErr(`[${data.code}] ${data.message}`);
+          }
+          if (ev === 'gameStarted') {
+            setGameStatus('running');
+          }
+          if (ev === 'gameOver') {
+            setGameStatus('ended');
+            stopShake();
+          }
+          if (ev === 'stateUpdate' && data && Array.isArray(data.players)) {
+            const me = data.players.find(p => p.id === socket.id);
+            if (me) {
+              const pct = Math.round(me.progress);
+              $('bar').style.width = pct + '%';
+              $('pct').textContent = pct + '%';
+            }
+            if (data.status) setGameStatus(data.status);
+          }
+        });
+      });
+    }
+
+    function disconnect() {
+      if (socket) socket.disconnect();
+    }
+
+    function needSocket() {
+      if (!socket || !socket.connected) {
+        log('SYS', 'warn', 'not connected — Connect 먼저');
+        return false;
+      }
+      return true;
+    }
+
+    function socketEmit(ev, payload) {
+      if (!needSocket()) return;
+      if (payload === undefined) socket.emit(ev);
+      else socket.emit(ev, payload);
+      log('OUT', ev, payload);
+    }
+
+    function sendJoinRoom() {
+      const room = $('e-jr-room').value.trim() || $('room').value.trim();
+      const name = $('e-jr-name').value.trim() || $('name').value.trim();
+      socketEmit('joinRoom', { room, name });
+    }
+
+    function sendShake() {
+      const delta = parseFloat($('e-sh-delta').value);
+      socketEmit('shake', { delta });
+    }
+
+    // Hold-to-shake loop
+    const btn = $('shake-btn');
+    function startShake() {
+      if (!needSocket()) return;
+      if (shakeTimer) return;
+      shakeTimer = setInterval(() => {
+        socket.emit('shake', { delta: 15 });
+      }, 100);
+    }
+    function stopShake() {
+      if (shakeTimer) { clearInterval(shakeTimer); shakeTimer = null; }
+    }
+    btn.addEventListener('mousedown', startShake);
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); startShake(); }, { passive: false });
+    btn.addEventListener('mouseup', stopShake);
+    btn.addEventListener('mouseleave', stopShake);
+    btn.addEventListener('touchend', stopShake);
+    btn.addEventListener('touchcancel', stopShake);
+  </script>
+</body>
+
+</html>

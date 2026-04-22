@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Climb Socket API – Display 문서</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --bg2: #070b1a;
+      --fg: #e8f0ff;
+      --muted: #8aa0c7;
+      --card: #111a33;
+      --card2: #0f1730;
+      --border: #22325a;
+      --accent: #4da3ff;
+      --accent2: #7aa8ff;
+      --ok: #2ecc71;
+      --warn: #f1c40f;
+      --danger: #ff4d5e;
+      --code: #0a1430;
+      --emit: #b46dff;
+      --listen: #2ecc71;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+      line-height: 1.55;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+      background: rgba(11, 16, 32, 0.85);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+    }
+
+    header .inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    header .tag {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--listen);
+      color: #042412;
+      font-weight: 700;
+    }
+
+    header .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      margin-right: 6px;
+    }
+
+    header .dot.on {
+      background: var(--ok);
+      box-shadow: 0 0 8px var(--ok);
+    }
+
+    header .dot.err {
+      background: var(--danger);
+    }
+
+    .conn-status {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 420px;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      aside {
+        position: static !important;
+      }
+    }
+
+    aside {
+      position: sticky;
+      top: 72px;
+      align-self: start;
+      display: grid;
+      gap: 12px;
+      max-height: calc(100vh - 92px);
+      overflow-y: auto;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .card h2 {
+      margin: 0 0 6px 0;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    input,
+    button,
+    select,
+    textarea {
+      font-size: 14px;
+      border-radius: 10px;
+      border: 1px solid #2a3a66;
+      background: var(--code);
+      color: var(--fg);
+      padding: 9px 12px;
+      font-family: inherit;
+      width: 100%;
+    }
+
+    textarea {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+      resize: vertical;
+      min-height: 70px;
+    }
+
+    button {
+      cursor: pointer;
+      width: auto;
+      font-weight: 600;
+      transition: transform 0.05s, filter 0.1s;
+    }
+
+    button:hover {
+      filter: brightness(1.15);
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #001022;
+    }
+
+    button.emit {
+      background: var(--emit);
+      border-color: var(--emit);
+      color: #fff;
+    }
+
+    button.ghost {
+      background: transparent;
+    }
+
+    button.danger {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    code,
+    pre {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12.5px;
+    }
+
+    pre {
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 8px 0 0;
+      white-space: pre;
+    }
+
+    code.inline {
+      background: var(--code);
+      padding: 2px 7px;
+      border-radius: 6px;
+      color: var(--accent2);
+    }
+
+    .event {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .event:first-of-type {
+      border-top: 0;
+      padding-top: 0;
+      margin-top: 0;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    .pill.emit {
+      background: rgba(180, 109, 255, 0.18);
+      color: #cfa7ff;
+      border: 1px solid rgba(180, 109, 255, 0.45);
+    }
+
+    .pill.listen {
+      background: rgba(46, 204, 113, 0.15);
+      color: #59d991;
+      border: 1px solid rgba(46, 204, 113, 0.45);
+    }
+
+    .event-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .event-title code {
+      background: var(--code);
+      padding: 3px 9px;
+      border-radius: 6px;
+      color: var(--accent2);
+      font-size: 14px;
+    }
+
+    .desc {
+      color: var(--muted);
+      font-size: 13.5px;
+      margin: 4px 0 10px;
+    }
+
+    .log {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      height: 220px;
+      overflow-y: auto;
+      font-size: 11.5px;
+      line-height: 1.5;
+    }
+
+    .log-entry {
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      word-break: break-word;
+    }
+
+    .log-entry .time {
+      color: var(--muted);
+      margin-right: 6px;
+    }
+
+    .log-entry .dir-out {
+      color: #cfa7ff;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .log-entry .dir-in {
+      color: #59d991;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .log-entry .dir-sys {
+      color: var(--warn);
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .log-entry .ev {
+      color: var(--fg);
+      font-weight: 600;
+    }
+
+    .log-entry .payload {
+      color: var(--muted);
+    }
+
+    .hint {
+      background: rgba(241, 196, 15, 0.08);
+      border-left: 3px solid var(--warn);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: #f0e3b9;
+      margin: 8px 0;
+    }
+
+    .toc {
+      font-size: 13px;
+    }
+
+    .toc a {
+      display: block;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 3px 0;
+      border-left: 2px solid transparent;
+      padding-left: 8px;
+      margin-left: -10px;
+    }
+
+    .toc a:hover {
+      color: var(--fg);
+      border-color: var(--accent);
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .live-badge .ping {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--ok);
+      animation: ping 1.5s infinite;
+    }
+
+    @keyframes ping {
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    .event-actions {
+      margin-top: 10px;
+      padding: 10px;
+      background: var(--card2);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .event-actions label {
+      margin-bottom: 2px;
+    }
+
+    .count-big {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .players-list {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .player-chip {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(77, 163, 255, 0.15);
+      border: 1px solid rgba(77, 163, 255, 0.4);
+      font-size: 12px;
+      color: #b8d7ff;
+    }
+
+    .status-chip {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-idle {
+      background: rgba(138, 160, 199, 0.18);
+      color: var(--muted);
+    }
+
+    .status-running {
+      background: rgba(46, 204, 113, 0.18);
+      color: #59d991;
+    }
+
+    .status-ended {
+      background: rgba(255, 77, 94, 0.18);
+      color: #ff8a95;
+    }
+
+    .track {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .track-row {
+      display: grid;
+      grid-template-columns: 90px 1fr 50px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .track-name {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-pct {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .track-bar {
+      height: 20px;
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .track-bar > div {
+      height: 100%;
+      background: linear-gradient(90deg, #4da3ff, #59d991);
+      width: 0%;
+      transition: width 0.15s;
+      box-shadow: 0 0 10px rgba(77, 163, 255, 0.4);
+    }
+
+    .winner {
+      padding: 12px;
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.25), rgba(255, 100, 0, 0.12));
+      border: 1px solid rgba(255, 215, 0, 0.4);
+      border-radius: 10px;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    .err-banner {
+      background: rgba(255, 77, 94, 0.12);
+      border-left: 3px solid var(--danger);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #ffb3ba;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="inner">
+      <span class="tag">DISPLAY</span>
+      <h1>Climb Socket API – Display 문서</h1>
+      <div class="conn-status" style="margin-left:auto">
+        <span class="dot" id="dot"></span>
+        <span id="status">연결 안 됨</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div>
+      <!-- ========== Overview ========== -->
+      <section class="card" id="overview">
+        <h2>개요</h2>
+        <p class="desc" style="margin-bottom:6px">
+          Climb Display는 <b>게임 화면</b>입니다. 방을 <b>처음 생성</b>하는 주체이며,
+          참가자 진행도(<code class="inline">progress</code>) 막대 렌더링과 승자 배너 표시가 주요 역할입니다.
+          Display가 끊기면 서버는 <code class="inline">gameOver</code>(<code class="inline">reason: 'display_disconnected'</code>)를
+          발행하고 방을 제거합니다.
+        </p>
+
+        <h3 style="margin-top:14px">연결 정보</h3>
+        <pre><code>URL:       https://socket-relay.zipshowkorea.com/climb
+Transport: WebSocket / Polling (auto)
+Library:   socket.io-client@4.x
+Query:     ?room=&lt;방 코드&gt;   (필수)
+           &amp;role=display      (필수 — Controller와 구분)</code></pre>
+
+        <div class="hint">
+          <b>중요</b>: 방은 연결 시점에 자동 생성됩니다. 이미 방이 존재하면
+          해당 방의 <code class="inline">displayId</code>가 현재 Display로 갱신됩니다.
+          <b>Display는 한 방에 하나만</b> 존재해야 합니다.
+        </div>
+
+        <h3 style="margin-top:14px">기본 사용 예시</h3>
+        <pre><code>import io from 'socket.io-client';
+
+const socket = io('https://socket-relay.zipshowkorea.com/climb', {
+  query: { room: 'room-1', role: 'display' },
+});
+
+socket.on('joinedRoom',  (d) =&gt; renderPlayers(d.players));
+socket.on('gameStarted', () =&gt; showCountdown());
+socket.on('stateUpdate', (d) =&gt; renderProgress(d.players));
+socket.on('gameOver',    (d) =&gt; showWinner(d.winnerId, d.snapshot));</code></pre>
+      </section>
+
+      <!-- ========== LISTEN Events ========== -->
+      <section class="card" style="margin-top:16px">
+        <h2><span class="pill listen">LISTEN</span> Server → Display</h2>
+        <p class="desc">Display의 핵심. 아래 이벤트가 들어오는 즉시 오른쪽 패널에 반영됩니다.</p>
+
+        <div class="event" id="listen-error">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>error</code></div>
+          <p class="desc">서버 측 오류. Display는 보통 <code class="inline">NO_ROOM</code>만 수신합니다
+            (쿼리 누락 시 → 즉시 disconnect).</p>
+          <pre><code>{ code: string, message: string }</code></pre>
+        </div>
+
+        <div class="event" id="listen-joinedRoom">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>joinedRoom</code></div>
+          <p class="desc">참가자 입장/퇴장 시 방 전체에 발행. 플레이어 네임태그·슬롯 렌더링용.</p>
+          <pre><code>{
+  room: string,
+  playerCount: number,
+  players: Array&lt;{ socketId: string, name: string }&gt;
+}</code></pre>
+        </div>
+
+        <div class="event" id="listen-roomPlayerCount">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>roomPlayerCount</code></div>
+          <p class="desc">인원 수만 경량으로. Display가 연결되면 먼저 이 이벤트가 발행됨.</p>
+          <pre><code>{ room: string, playerCount: number }</code></pre>
+        </div>
+
+        <div class="event" id="listen-gameStarted">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>gameStarted</code></div>
+          <p class="desc">Controller의 <code class="inline">startGame</code> 요청 성공 시 방 전체에 발행.
+            카운트다운·배경 전환에 사용.</p>
+          <pre><code>// no payload</code></pre>
+        </div>
+
+        <div class="event" id="listen-stateUpdate">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>stateUpdate</code></div>
+          <p class="desc">방 상태 변경 시마다 발행. 각 플레이어 progress(0~100) 막대 업데이트의 트리거.</p>
+          <pre><code>{
+  status: 'idle' | 'running' | 'ended',
+  players: Array&lt;{ id: string, name?: string, progress: number }&gt;
+}</code></pre>
+        </div>
+
+        <div class="event" id="listen-gameOver">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>gameOver</code></div>
+          <p class="desc">100% 도달자가 나오거나 Display가 끊어졌을 때. 우승자 화면 렌더링용.</p>
+          <pre><code>{
+  winnerId: string | null,
+  snapshot: {
+    status: 'idle' | 'running' | 'ended',
+    players: Array&lt;{ id, name?, progress }&gt;
+  },
+  reason?: 'display_disconnected'
+}</code></pre>
+        </div>
+
+        <div class="event" id="listen-status-queue">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>status-queue</code></div>
+          <p class="desc">대기열 변경 시 모든 클라이언트에 발행. 대기 순번 표시에 사용.</p>
+          <pre><code>string[]   // socketId 배열</code></pre>
+        </div>
+      </section>
+
+      <!-- ========== EMIT Events ========== -->
+      <section class="card" style="margin-top:16px">
+        <h2><span class="pill emit">EMIT</span> Display → Server</h2>
+        <p class="desc">Display가 세션을 관리하기 위해 보내는 이벤트. 실제 서버로 발행해볼 수 있습니다.</p>
+
+        <div class="event" id="emit-reset-queue">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>reset-queue</code></div>
+          <p class="desc">대기열 초기화. 서버는 <code class="inline">project</code> 룸으로
+            <code class="inline">reset-queue</code>를 브로드캐스트.</p>
+          <pre><code>// payload
+{ project: string }
+
+socket.emit('reset-queue', { project: 'climb' });</code></pre>
+          <div class="event-actions">
+            <label>project</label>
+            <input id="e-rq-project" value="climb" />
+            <div class="row" style="margin-top:8px">
+              <button class="emit" onclick="sendResetQueue()">emit reset-queue</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="event" id="emit-status-queue">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>status-queue</code></div>
+          <p class="desc">현재 대기열 스냅샷을 요청. 응답은 <b>요청자에게만</b> 전달.</p>
+          <pre><code>socket.emit('status-queue');
+socket.on('status-queue', (queue) =&gt; renderQueue(queue));</code></pre>
+          <div class="event-actions">
+            <button class="emit" onclick="socketEmit('status-queue')">emit status-queue</button>
+          </div>
+        </div>
+
+        <div class="hint">
+          Climb 게이트웨이는 Display 전용 <code class="inline">disconnect-room</code> 같은 이벤트가 없습니다.
+          방 종료가 필요하면 Display 소켓을 끊으면 서버가 <code class="inline">gameOver</code>
+          브로드캐스트 + 방 제거를 자동 수행합니다.
+        </div>
+      </section>
+    </div>
+
+    <!-- ========== Live Playground ========== -->
+    <aside>
+      <section class="card">
+        <h2>📺 Live Playground</h2>
+        <label>Server URL</label>
+        <input id="url" value="https://socket-relay.zipshowkorea.com/climb" />
+        <div style="margin-top:8px">
+          <label>room</label>
+          <input id="room" value="room-1" />
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="btn-connect" onclick="connect()">Connect (role=display)</button>
+          <button class="danger ghost" id="btn-disconnect" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+        <div class="hint" style="margin-top:10px">
+          Connect 시 <code class="inline">role=display</code>로 접속 → 방이 없으면 생성됩니다.
+          Disconnect 시 서버가 방을 닫고 Controller들에게 <code class="inline">gameOver</code>를 보냅니다.
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-top:6px">
+          socketId: <code class="inline" id="sid">-</code>
+        </div>
+        <div id="err" style="display:none" class="err-banner"></div>
+      </section>
+
+      <section class="card">
+        <h3>방 상태</h3>
+        <div class="row" style="justify-content:space-between; align-items:center">
+          <span style="color:var(--muted); font-size:12px">playerCount</span>
+          <span class="count-big" id="pc">0</span>
+          <span class="status-chip status-idle" id="gs">idle</span>
+        </div>
+        <div class="players-list" id="players"></div>
+      </section>
+
+      <section class="card">
+        <h3>라이브 Climb 트랙</h3>
+        <div class="track" id="track"></div>
+        <div id="winner-box"></div>
+      </section>
+
+      <section class="card">
+        <h3>이벤트 로그</h3>
+        <div class="log" id="log"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="ghost" onclick="clearLog()">Clear</button>
+          <button class="ghost" onclick="resetView()">View Reset</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>바로 가기</h3>
+        <nav class="toc">
+          <a href="#overview">개요</a>
+          <a href="#listen-error">LISTEN · error</a>
+          <a href="#listen-joinedRoom">LISTEN · joinedRoom</a>
+          <a href="#listen-roomPlayerCount">LISTEN · roomPlayerCount</a>
+          <a href="#listen-gameStarted">LISTEN · gameStarted</a>
+          <a href="#listen-stateUpdate">LISTEN · stateUpdate</a>
+          <a href="#listen-gameOver">LISTEN · gameOver</a>
+          <a href="#listen-status-queue">LISTEN · status-queue</a>
+          <a href="#emit-reset-queue">EMIT · reset-queue</a>
+          <a href="#emit-status-queue">EMIT · status-queue</a>
+        </nav>
+      </section>
+    </aside>
+  </main>
+
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"
+    integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+"
+    crossorigin="anonymous"></script>
+  <script>
+    let socket = null;
+
+    const $ = (id) => document.getElementById(id);
+    const logEl = $('log');
+
+    const LISTEN_EVENTS = [
+      'error',
+      'joinedRoom',
+      'roomPlayerCount',
+      'gameStarted',
+      'stateUpdate',
+      'gameOver',
+      'status-queue',
+      'reset-queue',
+    ];
+
+    const playerState = new Map(); // id -> { name, progress }
+
+    function log(dir, ev, payload) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      const dirCls = dir === 'IN' ? 'dir-in' : dir === 'OUT' ? 'dir-out' : 'dir-sys';
+      const arrow = dir === 'IN' ? '←' : dir === 'OUT' ? '→' : '·';
+      const t = new Date().toLocaleTimeString();
+      const payloadStr = payload === undefined
+        ? ''
+        : typeof payload === 'string'
+          ? payload
+          : JSON.stringify(payload);
+      entry.innerHTML =
+        `<span class="time">${t}</span>` +
+        `<span class="${dirCls}">${arrow}</span> ` +
+        `<span class="ev">${ev}</span> ` +
+        `<span class="payload">${escapeHtml(payloadStr)}</span>`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function clearLog() { logEl.innerHTML = ''; }
+
+    function setStatus(state) {
+      const dot = $('dot'), status = $('status');
+      dot.className = 'dot';
+      if (state === 'on') { dot.classList.add('on'); status.textContent = '연결됨'; }
+      else if (state === 'err') { dot.classList.add('err'); status.textContent = '오류'; }
+      else { status.textContent = '연결 안 됨'; }
+    }
+
+    function setGameStatus(s) {
+      const el = $('gs');
+      el.className = 'status-chip ' + (s === 'running' ? 'status-running' : s === 'ended' ? 'status-ended' : 'status-idle');
+      el.textContent = s;
+    }
+
+    function showErr(msg) {
+      const el = $('err');
+      el.textContent = msg;
+      el.style.display = '';
+      clearTimeout(showErr._t);
+      showErr._t = setTimeout(() => el.style.display = 'none', 5000);
+    }
+
+    function renderTrack() {
+      const players = Array.from(playerState.values())
+        .sort((a, b) => b.progress - a.progress);
+      const track = $('track');
+      track.innerHTML = players.map(p => {
+        const pct = Math.max(0, Math.min(100, p.progress));
+        return `
+          <div class="track-row">
+            <div class="track-name">${escapeHtml(p.name || '-')}</div>
+            <div class="track-bar"><div style="width:${pct}%"></div></div>
+            <div class="track-pct">${pct.toFixed(0)}%</div>
+          </div>`;
+      }).join('');
+    }
+
+    function showWinner(winnerId, snapshot, reason) {
+      const box = $('winner-box');
+      if (reason === 'display_disconnected') {
+        box.innerHTML = `<div class="winner">⚠️ Display 이탈로 게임 종료</div>`;
+        return;
+      }
+      if (!winnerId) {
+        box.innerHTML = `<div class="winner">게임 종료</div>`;
+        return;
+      }
+      const w = (snapshot?.players || []).find(p => p.id === winnerId);
+      const wn = w ? (w.name || winnerId.slice(0, 6)) : winnerId.slice(0, 6);
+      box.innerHTML = `<div class="winner">🏆 <b>${escapeHtml(wn)}</b> — 100% 도달!</div>`;
+    }
+
+    function resetView() {
+      playerState.clear();
+      $('pc').textContent = 0;
+      $('players').innerHTML = '';
+      $('track').innerHTML = '';
+      $('winner-box').innerHTML = '';
+      setGameStatus('idle');
+    }
+
+    function handle(ev, data) {
+      log('IN', ev, data);
+      switch (ev) {
+        case 'error':
+          showErr(`[${data.code}] ${data.message}`);
+          break;
+        case 'joinedRoom': {
+          $('pc').textContent = data.playerCount ?? 0;
+          const ps = data.players || [];
+          $('players').innerHTML = ps.map(p =>
+            `<span class="player-chip">${escapeHtml(p.name)}</span>`
+          ).join('');
+          // 기존 progress 유지하되 이름/멤버 동기화
+          const ids = new Set(ps.map(p => p.socketId));
+          playerState.forEach((_, id) => { if (!ids.has(id)) playerState.delete(id); });
+          ps.forEach(p => {
+            const cur = playerState.get(p.socketId) || { progress: 0 };
+            playerState.set(p.socketId, { name: p.name, progress: cur.progress });
+          });
+          renderTrack();
+          break;
+        }
+        case 'roomPlayerCount':
+          $('pc').textContent = data.playerCount ?? 0;
+          break;
+        case 'gameStarted':
+          setGameStatus('running');
+          $('winner-box').innerHTML = '';
+          break;
+        case 'stateUpdate': {
+          if (data?.status) setGameStatus(data.status);
+          (data?.players || []).forEach(p => {
+            playerState.set(p.id, { name: p.name, progress: p.progress });
+          });
+          renderTrack();
+          break;
+        }
+        case 'gameOver': {
+          setGameStatus('ended');
+          // snapshot 반영 후 winner 표시
+          (data?.snapshot?.players || []).forEach(p => {
+            playerState.set(p.id, { name: p.name, progress: p.progress });
+          });
+          renderTrack();
+          showWinner(data?.winnerId, data?.snapshot, data?.reason);
+          break;
+        }
+      }
+    }
+
+    function connect() {
+      if (socket) socket.disconnect();
+      const url = $('url').value.trim();
+      const room = $('room').value.trim();
+      resetView();
+      try {
+        socket = io(url, {
+          transports: ['websocket', 'polling'],
+          query: { room, role: 'display' },
+          forceNew: true,
+        });
+      } catch (e) {
+        log('SYS', 'connect-error', e.message);
+        return;
+      }
+
+      socket.on('connect', () => {
+        setStatus('on');
+        $('btn-connect').disabled = true;
+        $('btn-disconnect').disabled = false;
+        $('sid').textContent = socket.id;
+        log('SYS', 'connect', { id: socket.id });
+      });
+
+      socket.on('disconnect', (reason) => {
+        setStatus('off');
+        $('btn-connect').disabled = false;
+        $('btn-disconnect').disabled = true;
+        $('sid').textContent = '-';
+        log('SYS', 'disconnect', reason);
+      });
+
+      socket.on('connect_error', (err) => {
+        setStatus('err');
+        log('SYS', 'connect_error', err.message);
+      });
+
+      LISTEN_EVENTS.forEach(ev => socket.on(ev, (d) => handle(ev, d)));
+    }
+
+    function disconnect() {
+      if (socket) socket.disconnect();
+    }
+
+    function needSocket() {
+      if (!socket || !socket.connected) {
+        log('SYS', 'warn', 'not connected — Connect 먼저');
+        return false;
+      }
+      return true;
+    }
+
+    function socketEmit(ev, payload) {
+      if (!needSocket()) return;
+      if (payload === undefined) socket.emit(ev);
+      else socket.emit(ev, payload);
+      log('OUT', ev, payload);
+    }
+
+    function sendResetQueue() {
+      const project = $('e-rq-project').value.trim() || 'climb';
+      socketEmit('reset-queue', { project });
+    }
+  </script>
+</body>
+
+</html>

@@ -5,7 +5,6 @@
   <meta charset="utf-8" />
   <title>Climb Game – Display</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <!-- Socket.IO & QRCode -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
@@ -93,7 +92,21 @@
       opacity: .9
     }
 
-    /* ==== TRACK LAYOUT (fixed heights so % works) ==== */
+    .player-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .chip {
+      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #0a1430;
+      border: 1px solid #2a3a66;
+    }
+
     .lanes {
       position: absolute;
       inset: 0;
@@ -102,10 +115,8 @@
       gap: 16px;
       padding: 24px;
       align-items: stretch;
-      /* was 'end' — must be 'stretch' */
       pointer-events: none;
       height: 100%;
-      /* ensure container has a height */
     }
 
     .lane {
@@ -115,7 +126,6 @@
       overflow: hidden;
       border: 1px solid #22325a;
       height: 100%;
-      /* children % -> lane height */
     }
 
     .finish {
@@ -126,7 +136,6 @@
       opacity: .7
     }
 
-    /* Graph fill (from bottom) */
     .fill {
       position: absolute;
       left: 0;
@@ -134,12 +143,9 @@
       bottom: 0;
       height: 0%;
       transition: height 120ms linear;
-      background: rgba(77, 171, 247, .22);
-      /* overwritten per player */
       backdrop-filter: blur(0.5px);
     }
 
-    /* Runner (circle) */
     .runner {
       position: absolute;
       left: 50%;
@@ -157,7 +163,6 @@
       border: 2px solid rgba(255, 255, 255, .15);
     }
 
-    /* Labels */
     .label {
       position: absolute;
       left: 50%;
@@ -195,6 +200,7 @@
       <button id="startBtn" class="btn" style="margin-top:6px">Start Game</button>
       <span id="status" class="note" style="margin-left:8px">Waiting…</span>
       <div class="note" id="playerCount" style="margin-top:4px">참여자: 0명</div>
+      <div class="player-chips" id="playerList"></div>
     </div>
   </div>
 
@@ -203,57 +209,78 @@
   <div class="toast" id="toast">대기중…</div>
 
   <script>
-    // ===== Room =====
+    const SOCKET_NAMESPACE = 'https://static-dev.zipshowkorea.com/climb';
+    const SOCKET_PATH = '/socket';
+    const MAX_PLAYERS = 4;
+
+    const COLORS = ['#ff6b6b', '#4dabf7', '#51cf66', '#ffd43b'];
+    const FILL_GRADIENTS = [
+      'linear-gradient(to top, rgba(255, 107, 107, 0.55), rgba(255, 107, 107, 0.22))',
+      'linear-gradient(to top, rgba(77, 171, 247, 0.55), rgba(77, 171, 247, 0.22))',
+      'linear-gradient(to top, rgba(81, 207, 102, 0.55), rgba(81, 207, 102, 0.22))',
+      'linear-gradient(to top, rgba(255, 212, 59, 0.55), rgba(255, 212, 59, 0.22))',
+    ];
+
+    const ERROR_MESSAGES = {
+      NO_ROOM: '룸 코드가 없습니다.',
+      NO_SUCH_ROOM: '존재하지 않는 룸입니다.',
+      ROOM_FULL: '정원이 가득 찼습니다.',
+      NOT_ENOUGH_PLAYERS: '최소 1명부터 시작할 수 있습니다.',
+      NO_DISPLAY: '디스플레이가 연결되어 있지 않습니다.',
+    };
+
     function rndRoom() {
-      const s = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-      return Array.from({
-        length: 4
-      }, () => s[Math.floor(Math.random() * s.length)]).join("");
+      const s = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      return Array.from({ length: 4 }, () => s[Math.floor(Math.random() * s.length)]).join('');
     }
+
     const url = new URL(location.href);
-    const room = (url.searchParams.get("room") || rndRoom()).toUpperCase();
-    history.replaceState({}, "", `?room=${room}`);
-    document.getElementById("room").textContent = room;
+    const room = (url.searchParams.get('room') || rndRoom()).toUpperCase();
+    history.replaceState({}, '', `?room=${room}`);
 
-    // ===== QR =====
+    const $ = (id) => document.getElementById(id);
+    $('room').textContent = room;
+
     const controllerUrl = `${location.origin}/climb/public/controller.html?room=${encodeURIComponent(room)}`;
-    document.getElementById("joinLink").textContent = controllerUrl;
-    new QRCode(document.getElementById("qr"), {
-      text: controllerUrl,
-      width: 120,
-      height: 120
-    });
+    $('joinLink').textContent = controllerUrl;
+    new QRCode($('qr'), { text: controllerUrl, width: 120, height: 120 });
 
-    // ===== Socket =====
-    const socket = io('https://static-dev.zipshowkorea.com/climb', {
-      path: '/socket',
-      query: {
-        role: 'display',
-        room
-      },
+    const socket = io(SOCKET_NAMESPACE, {
+      path: SOCKET_PATH,
+      query: { role: 'display', room },
       transports: ['websocket'],
       reconnection: true,
     });
 
-    const statusEl = document.getElementById('status');
-    const toastEl = document.getElementById('toast');
-    const startBtn = document.getElementById('startBtn');
-    const lanesEl = document.getElementById('lanes');
-    const playerCountEl = document.getElementById('playerCount');
+    const statusEl = $('status');
+    const toastEl = $('toast');
+    const startBtn = $('startBtn');
+    const lanesEl = $('lanes');
+    const playerCountEl = $('playerCount');
+    const playerListEl = $('playerList');
+    const queueStatusEl = $('queueStatus');
 
-    const players = new Map(); // id -> { lane, fill, runner, label, pct, color, name }
+    const laneByPlayerId = new Map();
 
     socket.on('connect', () => {
       toast(`Connected (#${socket.id})`);
       statusEl.textContent = `Display connected. Room ${room}`;
-      // 큐 상태 요청
-      socket.emit("status-queue");
+      socket.emit('status-queue');
     });
+
     socket.on('connect_error', (e) => toast(`Connect error: ${e.message}`));
 
-    // 큐 상태 업데이트 수신
-    socket.on("status-queue", (queue) => {
-      document.getElementById("queueStatus").textContent = `큐: [${queue.join(", ")}]`;
+    socket.on('status-queue', (queue) => {
+      queueStatusEl.textContent = `큐: [${queue.join(', ')}]`;
+    });
+
+    socket.on('joinedRoom', ({ playerCount, players }) => {
+      updatePlayerCount(playerCount);
+      renderPlayerChips(players);
+    });
+
+    socket.on('roomPlayerCount', ({ playerCount }) => {
+      updatePlayerCount(playerCount);
     });
 
     socket.on('stateUpdate', (state) => {
@@ -261,23 +288,15 @@
 
       if (lanesEl.children.length !== state.players.length) {
         lanesEl.innerHTML = '';
-        players.clear();
+        laneByPlayerId.clear();
       }
       state.players.forEach((p, index) => upsertRunner(p, index));
 
-      // 게임 상태에 따라 버튼 상태 업데이트
       if (state.status === 'running') {
         startBtn.disabled = true;
-      } else if (state.status === 'idle' || state.status === 'ended') {
+      } else {
         startBtn.disabled = false;
       }
-    });
-
-    socket.on('roomPlayerCount', ({
-      room,
-      playerCount
-    }) => {
-      playerCountEl.textContent = `참여자: ${playerCount}명`;
     });
 
     socket.on('gameStarted', () => {
@@ -285,40 +304,54 @@
       startBtn.disabled = true;
     });
 
-    socket.on('gameOver', ({
-      winnerId,
-      snapshot
-    }) => {
-      const winner = snapshot.players.find(p => p.id === winnerId);
-      statusEl.textContent = winner ? `Winner: ${winner.name}` : 'Game stopped';
+    socket.on('gameOver', ({ winnerId, snapshot, reason }) => {
+      if (reason === 'display_disconnected') {
+        statusEl.textContent = 'Display disconnected';
+      } else {
+        const winner = snapshot?.players?.find((p) => p.id === winnerId);
+        statusEl.textContent = winner ? `Winner: ${winner.name}` : 'Game stopped';
+      }
       startBtn.disabled = false;
     });
 
     socket.on('error', (e) => {
-      statusEl.textContent = `Error: ${e.message || e}`;
+      const msg = ERROR_MESSAGES[e?.code] || e?.message || String(e);
+      statusEl.textContent = `Error: ${msg}`;
+      toast(msg);
     });
 
     startBtn.onclick = () => socket.emit('startGame');
 
-    // ===== Utils =====
     function toast(msg) {
       toastEl.textContent = msg;
       toastEl.style.opacity = 1;
       clearTimeout(window._t1);
-      window._t1 = setTimeout(() => {
-        toastEl.style.opacity = .0;
-      }, 1800);
+      window._t1 = setTimeout(() => { toastEl.style.opacity = 0; }, 1800);
     }
 
-    // 빨강, 파랑 (최대 2명)
-    const COLORS = ['#ff6b6b', '#4dabf7']; // 빨강, 파랑
+    function updatePlayerCount(count) {
+      if (count === undefined || count === null) return;
+      playerCountEl.textContent = `참여자: ${count}명 / ${MAX_PLAYERS}`;
+    }
 
-    // ===== UI =====
+    function renderPlayerChips(players) {
+      if (!Array.isArray(players)) return;
+      playerListEl.innerHTML = '';
+      players.forEach((p, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.style.borderColor = COLORS[i % COLORS.length];
+        chip.textContent = p.name || 'Unknown';
+        playerListEl.appendChild(chip);
+      });
+    }
+
     function upsertRunner(p, index) {
-      let row = players.get(p.id);
+      let row = laneByPlayerId.get(p.id);
       if (!row) {
-        const colorIndex = (index !== undefined && index !== null) ? (index % 2) : 0;
+        const colorIndex = (index ?? 0) % COLORS.length;
         const color = COLORS[colorIndex];
+
         const lane = document.createElement('div');
         lane.className = 'lane';
 
@@ -329,11 +362,7 @@
 
         const fill = document.createElement('div');
         fill.className = 'fill';
-        if (colorIndex === 0) {
-          fill.style.background = 'linear-gradient(to top, rgba(255, 107, 107, 0.55), rgba(255, 107, 107, 0.22))';
-        } else {
-          fill.style.background = 'linear-gradient(to top, rgba(77, 171, 247, 0.55), rgba(77, 171, 247, 0.22))';
-        }
+        fill.style.background = FILL_GRADIENTS[colorIndex];
         lane.appendChild(fill);
 
         const runner = document.createElement('div');
@@ -353,28 +382,17 @@
         lane.appendChild(label);
 
         lanesEl.appendChild(lane);
-        row = {
-          lane,
-          fill,
-          runner,
-          label,
-          pct,
-          color: color,
-          name: p.name
-        };
-        players.set(p.id, row);
+        row = { lane, fill, runner, label, pct, color, name: p.name };
+        laneByPlayerId.set(p.id, row);
       }
 
-      // progress: 0..100 (%)
-      const raw = Number(p.progress) || 0;
-      const clamped = Math.max(0, Math.min(100, raw));
+      const clamped = Math.max(0, Math.min(100, Number(p.progress) || 0));
       row.fill.style.height = `${clamped}%`;
       row.runner.style.bottom = `${clamped}%`;
       row.pct.textContent = `${Math.round(clamped)}%`;
     }
 
-    // ===== Background (optional) =====
-    const canvas = document.getElementById('canvas');
+    const canvas = $('canvas');
     const ctx = canvas.getContext('2d');
 
     function resize() {
@@ -386,7 +404,10 @@
     resize();
 
     function drawBg() {
-      const g = ctx.createRadialGradient(canvas.width * .5, canvas.height * .5, 50, canvas.width * .5, canvas.height * .5, Math.max(canvas.width, canvas.height) * .7);
+      const g = ctx.createRadialGradient(
+        canvas.width * .5, canvas.height * .5, 50,
+        canvas.width * .5, canvas.height * .5, Math.max(canvas.width, canvas.height) * .7,
+      );
       g.addColorStop(0, '#0d1535');
       g.addColorStop(1, '#050814');
       ctx.fillStyle = g;

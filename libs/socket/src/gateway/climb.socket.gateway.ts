@@ -158,7 +158,7 @@ export class ClimbSocketGateway
     const state = this.findRoomBySocket(client.id);
 
     if (!state) return;
-    if (state.players.size < 2) {
+    if (state.players.size < 1) {
       client.emit('error', {
         code: 'NOT_ENOUGH_PLAYERS',
         message: 'Not enough players to start',
