@@ -53,7 +53,7 @@ export class ClimbSocketGateway
     let state = rooms.get(room);
     if (!state) {
       // Recommended to have the display create the room first
-      state = { code: room, players: new Map(), status: 'idle', maxPlayers: 2 };
+      state = { code: room, players: new Map(), status: 'idle', maxPlayers: 4 };
       rooms.set(room, state);
     }
 
@@ -92,8 +92,12 @@ export class ClimbSocketGateway
         this.logger.log(`Player ${client.id} left room ${state.code}`);
         this.broadcastState(state);
 
-        // 방의 현재 플레이어 수 브로드캐스트
+        // 방의 현재 플레이어 수와 참가자 리스트 브로드캐스트
         const playerCount = state.players.size;
+        const players = this.getRoomPlayers(state);
+        this.server
+          .to(state.code)
+          .emit('joinedRoom', { room: state.code, playerCount, players });
         this.server
           .to(state.code)
           .emit('roomPlayerCount', { room: state.code, playerCount });
@@ -128,13 +132,25 @@ export class ClimbSocketGateway
       progress: 0,
     });
 
-    // 방의 현재 플레이어 수 브로드캐스트
+    // 방의 현재 플레이어 수와 참가자 리스트 브로드캐스트
     const playerCount = state.players.size;
-    client.emit('joinedRoom', { room: data.room, playerCount });
+    const players = this.getRoomPlayers(state);
+    this.server
+      .to(data.room)
+      .emit('joinedRoom', { room: data.room, playerCount, players });
     this.server
       .to(data.room)
       .emit('roomPlayerCount', { room: data.room, playerCount });
     this.broadcastState(state);
+  }
+
+  private getRoomPlayers(
+    state: RoomState,
+  ): Array<{ socketId: string; name: string }> {
+    return Array.from(state.players.values()).map((p) => ({
+      socketId: p.id,
+      name: p.name || 'Unknown',
+    }));
   }
 
   @SubscribeMessage('startGame')
