@@ -28,7 +28,6 @@ export class DartSocketGateway
   private readonly logger = new Logger(DartSocketGateway.name);
   private readonly roomClients = new Map<string, Set<string>>();
   private readonly clientInfoMap = new Map<string, ClientInfo>(); // socketId -> ClientInfo
-  private readonly MAX_PLAYERS_PER_ROOM = 4;
   private readonly MAX_NAME_LENGTH = 32;
   private readonly MAX_ROOM_LENGTH = 64;
   private readonly GAME_END_CLOSE_DELAY_MS = 5000; // 결과 표시 후 방 종료까지 대기 시간
@@ -38,8 +37,6 @@ export class DartSocketGateway
 
     this.logger.log(`Client connected ${client.id} room: ${room}`);
 
-    // 용량 체크는 joinRoom에서만 수행 (observer 패턴 지원 — display처럼
-    // joinRoom을 호출하지 않는 클라이언트는 참가자 수에 포함되지 않음)
     if (room) {
       // socket.io 내부 룸 조인만 수행. 참가자 등록/브로드캐스트는 joinRoom에서 처리.
       client.join(room);
@@ -87,22 +84,6 @@ export class DartSocketGateway
       payload?.name || this.clientInfoMap.get(client.id)?.name || 'Unknown';
     const trimmedName = String(rawName).trim().slice(0, this.MAX_NAME_LENGTH);
     const name = trimmedName || 'Unknown';
-
-    // 방이 가득 찼는지 확인 (이미 이 방에 있는 경우는 제외)
-    const alreadyInRoom = this.roomClients.get(room)?.has(client.id) ?? false;
-    if (
-      !alreadyInRoom &&
-      this.getRoomPlayerCount(room) >= this.MAX_PLAYERS_PER_ROOM
-    ) {
-      this.logger.log(
-        `Client ${client.id} (${name}) rejected: room ${room} is full (max ${this.MAX_PLAYERS_PER_ROOM})`,
-      );
-      client.emit('roomFull', {
-        room,
-        maxPlayers: this.MAX_PLAYERS_PER_ROOM,
-      });
-      return;
-    }
 
     // 이전에 다른 방에 속해 있었다면 먼저 나간다 (방 이동 시 스테일 엔트리 방지)
     const prevInfo = this.clientInfoMap.get(client.id);
