@@ -677,6 +677,38 @@ socket.on('status-queue', (queue) =&gt; console.log(queue));</code></pre>
           </div>
         </div>
 
+        <!-- gameOver -->
+        <div class="event" id="emit-gameOver">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>gameOver</code></div>
+          <p class="desc">게임을 수동으로 종료. 서버는 방 상태를 <code class="inline">'ended'</code>로 바꾸고 같은 룸의 모든 클라이언트에게
+            <code class="inline">gameOver</code>를 브로드캐스트한 뒤,
+            <b>해당 룸의 모든 소켓을 강제 disconnect</b> 합니다(자동 정리).
+            <code class="inline">winnerId</code>·<code class="inline">reason</code>은 옵셔널이며 미지정 시 각각
+            <code class="inline">null</code>, <code class="inline">'manual'</code>로 채워집니다.</p>
+          <pre><code>// payload (둘 다 옵셔널)
+{ winnerId?: string | null, reason?: string }
+
+socket.emit('gameOver', { winnerId: socket.id, reason: 'reached_top' });
+// 또는
+socket.emit('gameOver');</code></pre>
+          <div class="event-actions">
+            <div class="grid2">
+              <div>
+                <label>winnerId (옵셔널)</label>
+                <input id="e-go-winner" placeholder="socketId" />
+              </div>
+              <div>
+                <label>reason (옵셔널)</label>
+                <input id="e-go-reason" placeholder="manual" />
+              </div>
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button class="emit" onclick="sendGameOver()">emit gameOver</button>
+              <span class="live-badge"><span class="ping"></span> 룸 전체에 gameOver 브로드캐스트</span>
+            </div>
+          </div>
+        </div>
+
         <!-- disconnect-room -->
         <div class="event" id="emit-disconnect-room">
           <div class="event-title"><span class="pill emit">EMIT</span><code>disconnect-room</code></div>
@@ -818,6 +850,7 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
           <a href="#emit-join-queue">EMIT · join-queue</a>
           <a href="#emit-leave-queue">EMIT · leave-queue</a>
           <a href="#emit-status-queue">EMIT · status-queue</a>
+          <a href="#emit-gameOver">EMIT · gameOver</a>
           <a href="#emit-disconnect-room">EMIT · disconnect-room</a>
         </nav>
       </section>
@@ -984,6 +1017,15 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
     function sendShake() {
       const delta = parseFloat($('e-sh-delta').value);
       socketEmit('shake', { delta });
+    }
+
+    function sendGameOver() {
+      const winnerId = ($('e-go-winner')?.value || '').trim();
+      const reason = ($('e-go-reason')?.value || '').trim();
+      const payload = {};
+      if (winnerId) payload.winnerId = winnerId;
+      if (reason) payload.reason = reason;
+      socketEmit('gameOver', Object.keys(payload).length ? payload : undefined);
     }
 
     function sendDisconnectRoom() {

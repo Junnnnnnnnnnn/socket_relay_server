@@ -222,6 +222,25 @@ export class ClimbSocketGateway
     this.broadcastState(state);
   }
 
+  @SubscribeMessage('gameOver')
+  handleGameOver(
+    @MessageBody() data: { winnerId?: string | null; reason?: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const state = this.findRoomBySocket(client.id);
+    if (!state) return;
+
+    state.status = 'ended';
+
+    this.server.to(state.code).emit('gameOver', {
+      winnerId: data?.winnerId ?? null,
+      snapshot: this.snapshot(state),
+      reason: data?.reason ?? 'manual',
+    });
+
+    this.server.in(state.code).disconnectSockets();
+  }
+
   @SubscribeMessage('shake')
   handleShake(
     @MessageBody() data: { delta: number },
