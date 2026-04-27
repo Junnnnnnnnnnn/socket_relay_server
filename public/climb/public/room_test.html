@@ -48,6 +48,8 @@
     .controls button.display:hover { background: #7B1FA2; }
     .controls button.danger { background: #f44336; }
     .controls button.danger:hover { background: #da190b; }
+    .controls button.gameover { background: #FF9800; }
+    .controls button.gameover:hover { background: #F57C00; }
 
     .clients {
       display: grid;
@@ -185,8 +187,9 @@
     테스트: <code>roomFull</code> (최대 4명, payload <code>{ room, maxPlayers }</code>, controller만 카운트) ·
     <code>joinedRoom</code> (참가자 리스트 브로드캐스트) ·
     <code>roomPlayerCount</code> (count) ·
-    <code>disconnect-room</code> (방 전체 강제 종료, 신규) ·
-    <b>재-joinRoom 보호</b>(이미 입장한 본인 호출은 정원 체크 제외, 신규)
+    <code>disconnect-room</code> (controller만 강제 종료, display 유지) ·
+    <code>gameOver</code> (controller만 강제 종료, display 유지) ·
+    <b>재-joinRoom 보호</b>(이미 입장한 본인 호출은 정원 체크 제외)
   </div>
 
   <div class="guide">
@@ -197,7 +200,8 @@
     나머지 4명 + Display 영향 없음.<br>
     ④ <b>재-joinRoom 보호 테스트</b> → ②에서 이미 입장한 컨트롤러의 <code>joinRoom 재전송</code> 버튼 클릭.
     정원이 가득 차 있어도 거부되지 않고 정상 처리(이름 변경/재연결 케이스 보호).<br>
-    ⑤ <b>룸 전체 disconnect</b> → <code>disconnect-room</code> 이벤트 emit. 방의 모든 소켓(컨트롤러 + 디스플레이)이 한 번에 끊김.
+    ⑤ <b>룸 controller disconnect</b> → <code>disconnect-room</code> 이벤트 emit. 방의 모든 controller만 끊기고 <b>display는 연결 유지</b>.<br>
+    ⑥ <b>gameOver 트리거</b> → <code>gameOver</code> 이벤트 emit (winnerId/reason 포함). 모든 클라이언트가 <code>gameOver</code> 수신 후 controller만 끊기고 <b>display는 연결 유지</b>. game status가 <code>ended</code>로 표시됨.
   </div>
 
   <div class="controls">
@@ -223,7 +227,8 @@
         <button id="addBtn">+ Controller</button>
         <button class="secondary" id="add4Btn">+ 4 Controllers</button>
         <button class="secondary" id="add5Btn">+ 5번째 (full 테스트)</button>
-        <button class="danger" id="disconnectAllBtn">룸 전체 disconnect</button>
+        <button class="gameover" id="gameOverBtn">gameOver 트리거</button>
+        <button class="danger" id="disconnectAllBtn">룸 controller disconnect</button>
       </div>
     </div>
     <div class="row" style="margin-top:10px">
@@ -464,6 +469,40 @@
       for (let i = 0; i < 4; i++) setTimeout(makeController, i * 200);
     };
     document.getElementById('add5Btn').onclick = makeController;
+    document.getElementById('gameOverBtn').onclick = () => {
+      const targetRoom = (roomInput.value.trim() || 'TEST').toUpperCase();
+
+      // display가 game을 종료하는 게 자연스러우므로 display 우선
+      const sameRoom = [...clients.values()].filter(
+        (c) => c.socket.connected && c.room === targetRoom,
+      );
+      const sender =
+        sameRoom.find((c) => c.role === 'display') ?? sameRoom[0];
+
+      const payload = { winnerId: null, reason: 'manual_test' };
+      if (sender) {
+        sender.socket.emit('gameOver', payload);
+        return;
+      }
+
+      // 활성 소켓이 없으면 임시 controller 소켓으로 emit
+      const baseUrl = serverInput.value.trim() || 'http://localhost:3456';
+      const socketPath = pathInput.value.trim() || '/socket.io';
+      const tmp = io(`${baseUrl}/climb`, {
+        path: socketPath,
+        query: { room: targetRoom, role: 'controller' },
+        reconnection: false,
+        transports: ['websocket', 'polling'],
+      });
+      tmp.on('connect', () => {
+        tmp.emit('joinRoom', { room: targetRoom, name: 'tmp' });
+        setTimeout(() => {
+          tmp.emit('gameOver', payload);
+          setTimeout(() => tmp.disconnect(), 200);
+        }, 100);
+      });
+    };
+
     document.getElementById('disconnectAllBtn').onclick = () => {
       const targetRoom = (roomInput.value.trim() || 'TEST').toUpperCase();
 

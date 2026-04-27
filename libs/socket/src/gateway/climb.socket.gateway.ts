@@ -7,7 +7,7 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { Namespace, Socket } from 'socket.io';
 import { Injectable, Logger } from '@nestjs/common';
 import { SocketService } from '../socket.service';
 
@@ -37,7 +37,7 @@ export class ClimbSocketGateway
 {
   constructor(private readonly socketService: SocketService) {}
 
-  @WebSocketServer() server: Server;
+  @WebSocketServer() server: Namespace;
   private readonly logger = new Logger(ClimbSocketGateway.name);
   private readonly MAX_ROOM_LENGTH = 64;
 
@@ -190,7 +190,10 @@ export class ClimbSocketGateway
       `Client ${client.id} requested disconnect-room for room: ${room}`,
     );
 
-    this.server.in(room).disconnectSockets();
+    const state = rooms.get(room);
+    if (!state) return;
+
+    this.disconnectControllers(state);
   }
 
   @SubscribeMessage('startGame')
@@ -238,7 +241,7 @@ export class ClimbSocketGateway
       reason: data?.reason ?? 'manual',
     });
 
-    this.server.in(state.code).disconnectSockets();
+    this.disconnectControllers(state);
   }
 
   @SubscribeMessage('shake')
@@ -280,6 +283,12 @@ export class ClimbSocketGateway
         progress: p.progress,
       })),
     };
+  }
+
+  private disconnectControllers(state: RoomState) {
+    for (const playerId of state.players.keys()) {
+      this.server.sockets.get(playerId)?.disconnect();
+    }
   }
 
   private findRoomBySocket(socketId: string): RoomState | undefined {
