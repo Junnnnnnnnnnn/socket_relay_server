@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8" />
-  <title>Climb Room Test (joinedRoom / roomPlayerCount / ROOM_FULL)</title>
+  <title>Climb Room Test (joinedRoom / roomPlayerCount / roomFull)</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -158,13 +158,46 @@
     .log .err { color: #EF5350; }
     .log .warn { color: #FFB74D; }
     .log .time { color: #888; }
+
+    .guide {
+      background: #FFF8E1;
+      border-left: 4px solid #FFB300;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #5D4037;
+      line-height: 1.6;
+    }
+    .guide b { color: #E65100; }
+    .guide code {
+      background: rgba(0,0,0,0.06);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
   </style>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
   <h1>Climb Room Test</h1>
   <div class="subtitle">
-    테스트: <code>ROOM_FULL</code> (최대 4명 제한, controller만 카운트) · <code>joinedRoom</code> (참가자 리스트 브로드캐스트) · <code>roomPlayerCount</code> (count)
+    테스트: <code>roomFull</code> (최대 4명, payload <code>{ room, maxPlayers }</code>, controller만 카운트) ·
+    <code>joinedRoom</code> (참가자 리스트 브로드캐스트) ·
+    <code>roomPlayerCount</code> (count) ·
+    <code>disconnect-room</code> (방 전체 강제 종료, 신규) ·
+    <b>재-joinRoom 보호</b>(이미 입장한 본인 호출은 정원 체크 제외, 신규)
+  </div>
+
+  <div class="guide">
+    <b>테스트 시나리오</b><br>
+    ① <b>+ Display</b> → 디스플레이 1개 먼저 연결 (참가자 카운트에 포함되지 않음).<br>
+    ② <b>+ 4 Controllers</b> → 같은 방에 컨트롤러 4개 정상 입장 (모두 연결, 참가자 리스트 4명).<br>
+    ③ <b>+ 5번째 (full 테스트)</b> → 5번째 컨트롤러만 <code>roomFull</code> 이벤트 수신, 빨간 보더 + "ROOM FULL (max 4)" 표시.
+    나머지 4명 + Display 영향 없음.<br>
+    ④ <b>재-joinRoom 보호 테스트</b> → ②에서 이미 입장한 컨트롤러의 <code>joinRoom 재전송</code> 버튼 클릭.
+    정원이 가득 차 있어도 거부되지 않고 정상 처리(이름 변경/재연결 케이스 보호).<br>
+    ⑤ <b>룸 전체 disconnect</b> → <code>disconnect-room</code> 이벤트 emit. 방의 모든 소켓(컨트롤러 + 디스플레이)이 한 번에 끊김.
   </div>
 
   <div class="controls">
@@ -362,12 +395,12 @@
       });
 
       // ---- UI 반영용 ----
-      socket.on('error', (data) => {
-        if (data?.code === 'ROOM_FULL') {
-          statusEl.textContent = 'ROOM FULL';
-          statusEl.className = 'status disconnected';
-          node.classList.add('full');
-        }
+      socket.on('roomFull', (data) => {
+        // data = { room, maxPlayers }
+        const max = data?.maxPlayers ?? 4;
+        statusEl.textContent = `ROOM FULL (max ${max})`;
+        statusEl.className = 'status disconnected';
+        node.classList.add('full');
       });
 
       socket.on('roomPlayerCount', (data) => {
@@ -433,8 +466,29 @@
     document.getElementById('add5Btn').onclick = makeController;
     document.getElementById('disconnectAllBtn').onclick = () => {
       const targetRoom = (roomInput.value.trim() || 'TEST').toUpperCase();
-      clients.forEach((c) => {
-        if (c.room === targetRoom) c.socket.disconnect();
+
+      // 서버의 'disconnect-room' 이벤트로 방의 모든 소켓 강제 종료 (신규)
+      const active = [...clients.values()].find(
+        (c) => c.socket.connected && c.room === targetRoom,
+      );
+      if (active) {
+        active.socket.emit('disconnect-room', { room: targetRoom });
+        return;
+      }
+
+      // 같은 방의 활성 소켓이 없으면 임시 소켓으로 emit
+      // (climb은 connect 시 room 쿼리가 필수 — 없으면 즉시 disconnect됨)
+      const baseUrl = serverInput.value.trim() || 'http://localhost:3456';
+      const socketPath = pathInput.value.trim() || '/socket.io';
+      const tmp = io(`${baseUrl}/climb`, {
+        path: socketPath,
+        query: { room: targetRoom, role: 'controller' },
+        reconnection: false,
+        transports: ['websocket', 'polling'],
+      });
+      tmp.on('connect', () => {
+        tmp.emit('disconnect-room', { room: targetRoom });
+        setTimeout(() => tmp.disconnect(), 200);
       });
     };
   </script>

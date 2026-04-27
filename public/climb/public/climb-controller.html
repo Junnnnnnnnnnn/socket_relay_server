@@ -574,7 +574,9 @@ socket.on('gameOver', (d) =&gt; showResult(d));</code></pre>
         <div class="event" id="emit-joinRoom">
           <div class="event-title"><span class="pill emit">EMIT</span><code>joinRoom</code></div>
           <p class="desc">방에 실제 플레이어로 등록. 최대 <b>4명</b>. 방 없으면
-            <code class="inline">NO_SUCH_ROOM</code>, 꽉 차면 <code class="inline">ROOM_FULL</code>.</p>
+            <code class="inline">error</code>(<code class="inline">NO_SUCH_ROOM</code>), 꽉 차면 별도
+            <code class="inline">roomFull</code> 이벤트.<br>
+            <b>이미 같은 방에 들어와 있는 본인의 재-<code class="inline">joinRoom</code></b>(이름 변경/재연결 등)은 정원 체크에서 제외되어 정상 처리됩니다.</p>
           <pre><code>// payload
 { room: string, name?: string }   // name 없으면 P1/P2/... 자동 부여
 
@@ -674,6 +676,25 @@ socket.on('status-queue', (queue) =&gt; console.log(queue));</code></pre>
             <button class="emit" onclick="socketEmit('status-queue')">emit status-queue</button>
           </div>
         </div>
+
+        <!-- disconnect-room -->
+        <div class="event" id="emit-disconnect-room">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>disconnect-room</code></div>
+          <p class="desc">해당 방의 <b>모든 소켓</b>(컨트롤러 + 디스플레이)을 강제 연결 해제.
+            게임 종료 후 방 정리용으로 호출. 룸 이름은 빈 문자열 불가, 최대 64자.</p>
+          <pre><code>// payload
+{ room: string }
+
+socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
+          <div class="event-actions">
+            <label>room</label>
+            <input id="e-dc-room" placeholder="room-1" />
+            <div class="row" style="margin-top:8px">
+              <button class="danger" onclick="sendDisconnectRoom()">emit disconnect-room</button>
+              <span class="live-badge"><span class="ping"></span> 실서버 영향 있음 — 방의 모든 소켓이 끊깁니다</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ========== LISTEN Events ========== -->
@@ -689,9 +710,14 @@ socket.on('status-queue', (queue) =&gt; console.log(queue));</code></pre>
 // code 종류:
 // - NO_ROOM            연결 시 room 쿼리 누락 (직후 disconnect)
 // - NO_SUCH_ROOM       joinRoom 시 방 없음
-// - ROOM_FULL          joinRoom 시 정원 초과 (max 4)
 // - NOT_ENOUGH_PLAYERS startGame 시 플레이어 &lt;2
 // - NO_DISPLAY         startGame 시 Display 미접속</code></pre>
+        </div>
+
+        <div class="event">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>roomFull</code></div>
+          <p class="desc">방 정원(4명) 초과 시 <b>해당 클라이언트에게만</b> 발행. 참가 실패.</p>
+          <pre><code>{ room: string, maxPlayers: number }</code></pre>
         </div>
 
         <div class="event">
@@ -792,6 +818,7 @@ socket.on('status-queue', (queue) =&gt; console.log(queue));</code></pre>
           <a href="#emit-join-queue">EMIT · join-queue</a>
           <a href="#emit-leave-queue">EMIT · leave-queue</a>
           <a href="#emit-status-queue">EMIT · status-queue</a>
+          <a href="#emit-disconnect-room">EMIT · disconnect-room</a>
         </nav>
       </section>
     </aside>
@@ -957,6 +984,13 @@ socket.on('status-queue', (queue) =&gt; console.log(queue));</code></pre>
     function sendShake() {
       const delta = parseFloat($('e-sh-delta').value);
       socketEmit('shake', { delta });
+    }
+
+    function sendDisconnectRoom() {
+      const room = ($('e-dc-room')?.value || '').trim();
+      if (!room) { alert('room을 입력하세요'); return; }
+      if (!confirm(`정말로 방 "${room}" 의 모든 소켓을 끊을까요?`)) return;
+      socketEmit('disconnect-room', { room });
     }
 
     // Hold-to-shake loop

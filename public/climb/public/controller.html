@@ -343,6 +343,11 @@
       setStatus(`오류: ${msg}`);
     });
 
+    socket.on('roomFull', (data) => {
+      // data = { room, maxPlayers }
+      setStatus(`정원이 가득 찼습니다 (최대 ${data?.maxPlayers ?? 4}명).`);
+    });
+
     function updatePlayerCount(count) {
       if (count === undefined || count === null) return;
       playerCountEl.textContent = `참여자: ${count}명`;

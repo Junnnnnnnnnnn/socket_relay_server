@@ -603,8 +603,21 @@ socket.on('gameOver',    (d) =&gt; showWinner(d.winnerId, d.snapshot));</code></
         <div class="event" id="listen-error">
           <div class="event-title"><span class="pill listen">LISTEN</span><code>error</code></div>
           <p class="desc">서버 측 오류. Display는 보통 <code class="inline">NO_ROOM</code>만 수신합니다
-            (쿼리 누락 시 → 즉시 disconnect).</p>
-          <pre><code>{ code: string, message: string }</code></pre>
+            (쿼리 누락 시 → 즉시 disconnect). 정원 초과는 <b>별도 <code class="inline">roomFull</code> 이벤트</b>로 분리됨(아래 참고).</p>
+          <pre><code>{ code: string, message: string }
+
+// code 종류:
+// - NO_ROOM            연결 시 room 쿼리 누락 (직후 disconnect)
+// - NO_SUCH_ROOM       joinRoom 시 방 없음
+// - NOT_ENOUGH_PLAYERS startGame 시 플레이어 부족
+// - NO_DISPLAY         startGame 시 Display 미접속</code></pre>
+        </div>
+
+        <div class="event" id="listen-roomFull">
+          <div class="event-title"><span class="pill listen">LISTEN</span><code>roomFull</code></div>
+          <p class="desc">방 정원(<b>최대 4명</b>) 초과 시 <b>해당 클라이언트에게만</b> 발행. Display는 보통
+            <code class="inline">joinRoom</code>을 호출하지 않으므로 직접 받지 않지만, 같은 namespace에서 동작하는 컨트롤러 디버깅 시 참고용.</p>
+          <pre><code>{ room: string, maxPlayers: number }   // maxPlayers = 4</code></pre>
         </div>
 
         <div class="event" id="listen-joinedRoom">
@@ -691,10 +704,28 @@ socket.on('status-queue', (queue) =&gt; renderQueue(queue));</code></pre>
           </div>
         </div>
 
+        <div class="event" id="emit-disconnect-room">
+          <div class="event-title"><span class="pill emit">EMIT</span><code>disconnect-room</code></div>
+          <p class="desc">해당 방의 <b>모든 소켓</b>(컨트롤러 + 디스플레이)을 강제 연결 해제. 게임 종료 후 방 정리용으로 호출.
+            룸 이름은 빈 문자열 불가, 최대 64자.</p>
+          <pre><code>// payload
+{ room: string }
+
+socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
+          <div class="event-actions">
+            <label>room</label>
+            <input id="e-dc-room" placeholder="room-1" />
+            <div class="row" style="margin-top:8px">
+              <button class="danger" onclick="sendDisconnectRoom()">emit disconnect-room</button>
+              <span class="live-badge"><span class="ping"></span> 실서버 영향 있음 — 방의 모든 소켓이 끊깁니다</span>
+            </div>
+          </div>
+        </div>
+
         <div class="hint">
-          Climb 게이트웨이는 Display 전용 <code class="inline">disconnect-room</code> 같은 이벤트가 없습니다.
-          방 종료가 필요하면 Display 소켓을 끊으면 서버가 <code class="inline">gameOver</code>
-          브로드캐스트 + 방 제거를 자동 수행합니다.
+          Display 소켓이 끊어지면 서버가 자동으로 <code class="inline">gameOver</code>
+          (<code class="inline">reason: 'display_disconnected'</code>) 브로드캐스트 + 방 제거를 수행합니다.
+          명시적으로 방의 모든 소켓을 한 번에 끊으려면 위 <code class="inline">disconnect-room</code>을 사용하세요.
         </div>
       </section>
     </div>
@@ -753,6 +784,7 @@ socket.on('status-queue', (queue) =&gt; renderQueue(queue));</code></pre>
         <nav class="toc">
           <a href="#overview">개요</a>
           <a href="#listen-error">LISTEN · error</a>
+          <a href="#listen-roomFull">LISTEN · roomFull</a>
           <a href="#listen-joinedRoom">LISTEN · joinedRoom</a>
           <a href="#listen-roomPlayerCount">LISTEN · roomPlayerCount</a>
           <a href="#listen-gameStarted">LISTEN · gameStarted</a>
@@ -761,6 +793,7 @@ socket.on('status-queue', (queue) =&gt; renderQueue(queue));</code></pre>
           <a href="#listen-status-queue">LISTEN · status-queue</a>
           <a href="#emit-reset-queue">EMIT · reset-queue</a>
           <a href="#emit-status-queue">EMIT · status-queue</a>
+          <a href="#emit-disconnect-room">EMIT · disconnect-room</a>
         </nav>
       </section>
     </aside>
@@ -777,6 +810,7 @@ socket.on('status-queue', (queue) =&gt; renderQueue(queue));</code></pre>
 
     const LISTEN_EVENTS = [
       'error',
+      'roomFull',
       'joinedRoom',
       'roomPlayerCount',
       'gameStarted',
@@ -987,6 +1021,13 @@ socket.on('status-queue', (queue) =&gt; renderQueue(queue));</code></pre>
     function sendResetQueue() {
       const project = $('e-rq-project').value.trim() || 'climb';
       socketEmit('reset-queue', { project });
+    }
+
+    function sendDisconnectRoom() {
+      const room = ($('e-dc-room')?.value || '').trim();
+      if (!room) { alert('room을 입력하세요'); return; }
+      if (!confirm(`정말로 방 "${room}" 의 모든 소켓을 끊을까요?`)) return;
+      socketEmit('disconnect-room', { room });
     }
   </script>
 </body>

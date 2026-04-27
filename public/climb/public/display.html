@@ -320,6 +320,13 @@
       toast(msg);
     });
 
+    socket.on('roomFull', (data) => {
+      // data = { room, maxPlayers }
+      const msg = `정원이 가득 찼습니다 (최대 ${data?.maxPlayers ?? 4}명).`;
+      statusEl.textContent = `Error: ${msg}`;
+      toast(msg);
+    });
+
     startBtn.onclick = () => socket.emit('startGame');
 
     function toast(msg) {

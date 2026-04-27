@@ -495,7 +495,8 @@ socket.on('joinedRoom', (data) =&gt; console.log('joined', data));</code></pre>
 
         <div class="hint">
           <b>제한</b>: 방 이름 최대 64자, 이름 최대 32자, 방당 최대 4명. 초과 시
-          <code class="inline">roomFull</code> 이벤트가 해당 클라이언트에게만 발행됩니다.
+          <code class="inline">roomFull</code> 이벤트가 해당 클라이언트에게만 발행됩니다.<br>
+          <b>이미 같은 방에 있는 본인의 재-<code class="inline">joinRoom</code></b>(이름 변경/재연결 등)은 정원 체크에서 제외되어 정상 처리됩니다.
         </div>
       </section>
 

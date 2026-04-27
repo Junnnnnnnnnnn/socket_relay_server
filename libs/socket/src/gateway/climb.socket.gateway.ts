@@ -39,6 +39,7 @@ export class ClimbSocketGateway
 
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(ClimbSocketGateway.name);
+  private readonly MAX_ROOM_LENGTH = 64;
 
   handleConnection(client: Socket) {
     const room = (client.handshake.query.room as string) || '';
@@ -121,8 +122,16 @@ export class ClimbSocketGateway
       return;
     }
 
-    if (state.players.size >= state.maxPlayers) {
-      client.emit('error', { code: 'ROOM_FULL', message: 'Room is full' });
+    // 방이 가득 찼는지 확인 (이미 이 방에 있는 경우는 제외 — 재연결/이름변경 보호)
+    const alreadyInRoom = state.players.has(client.id);
+    if (!alreadyInRoom && state.players.size >= state.maxPlayers) {
+      this.logger.log(
+        `Client ${client.id} rejected: room ${data.room} is full (max ${state.maxPlayers})`,
+      );
+      client.emit('roomFull', {
+        room: data.room,
+        maxPlayers: state.maxPlayers,
+      });
       return;
     }
 
@@ -151,6 +160,37 @@ export class ClimbSocketGateway
       socketId: p.id,
       name: p.name || 'Unknown',
     }));
+  }
+
+  /**
+   * 해당 방의 모든 클라이언트를 서버에서 강제 연결 해제한다.
+   *
+   * @description
+   * - 룸의 모든 소켓(observer 포함)을 disconnect한다.
+   * - 각 클라이언트는 handleDisconnect를 통해 정상적으로 정리된다.
+   *
+   * @param payload.room - 연결 해제할 룸 이름
+   */
+  @SubscribeMessage('disconnect-room')
+  handleDisconnectRoom(
+    @MessageBody() payload: { room: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const room = payload?.room;
+    if (
+      !room ||
+      typeof room !== 'string' ||
+      room.length === 0 ||
+      room.length > this.MAX_ROOM_LENGTH
+    ) {
+      return;
+    }
+
+    this.logger.log(
+      `Client ${client.id} requested disconnect-room for room: ${room}`,
+    );
+
+    this.server.in(room).disconnectSockets();
   }
 
   @SubscribeMessage('startGame')

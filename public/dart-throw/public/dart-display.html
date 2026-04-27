@@ -556,6 +556,10 @@ socket.on('game-finished', (d) =&gt; renderRanking(d.ranking));</code></pre>
           Controller와 달리 <code class="inline">joinRoom</code>을 호출하지 않으면 방의
           참가자 수(<code class="inline">playerCount</code>)에 포함되지 않습니다.
           연결 쿼리의 <code class="inline">room</code> 하나로 브로드캐스트만 받도록 구성하세요.
+          <br><br>
+          <b>방 정원</b>: 컨트롤러는 방당 <b>최대 4명</b>. 5번째 컨트롤러가 <code class="inline">joinRoom</code>을 호출하면
+          서버가 그 클라이언트에게만 <code class="inline">roomFull</code> 이벤트(<code class="inline">{ room, maxPlayers: 4 }</code>)를 보내고 등록을 거부합니다.
+          Display는 <code class="inline">joinRoom</code>을 호출하지 않으므로 보통 영향 없음.
         </div>
       </section>
 
