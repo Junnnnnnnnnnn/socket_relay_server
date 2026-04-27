@@ -338,10 +338,8 @@
       }
       if (winnerId === socket.id) {
         showModal('Win! 🎉', 'win');
-      } else if (winnerId) {
-        showModal('Lose 😢', 'lose');
       } else {
-        showModal('게임 종료', 'info');
+        showModal('Lose 😢', 'lose');
       }
     });
 
