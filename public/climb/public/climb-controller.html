@@ -507,6 +507,106 @@
       color: #ffb3ba;
       margin-top: 8px;
     }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 26px 24px 22px;
+      max-width: 440px;
+      width: 90%;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal .icon {
+      font-size: 36px;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .modal h3 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      text-align: center;
+      color: var(--fg);
+    }
+
+    .modal .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .modal .result-row .k {
+      color: var(--muted);
+    }
+
+    .modal .result-row .v {
+      color: var(--fg);
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+      word-break: break-all;
+      text-align: right;
+    }
+
+    .modal .winner-badge {
+      color: #ffd54f;
+      font-weight: 700;
+    }
+
+    .modal .disconnected-banner {
+      display: none;
+      background: rgba(255, 77, 94, 0.12);
+      border-left: 3px solid var(--danger);
+      color: #ffb3ba;
+      font-size: 13px;
+      padding: 9px 12px;
+      border-radius: 6px;
+      margin-top: 12px;
+    }
+
+    .modal .disconnected-banner.show {
+      display: block;
+    }
+
+    .modal .actions {
+      margin-top: 18px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .modal button {
+      width: auto;
+      min-width: 130px;
+    }
   </style>
 </head>
 
@@ -857,12 +957,43 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
     </aside>
   </main>
 
+  <div class="modal-overlay" id="game-over-modal">
+    <div class="modal">
+      <div class="icon">🏁</div>
+      <h3>게임 종료</h3>
+      <div class="result-row">
+        <span class="k">winner</span>
+        <span class="v winner-badge" id="go-winner">-</span>
+      </div>
+      <div class="result-row">
+        <span class="k">reason</span>
+        <span class="v" id="go-reason">-</span>
+      </div>
+      <div class="result-row">
+        <span class="k">status</span>
+        <span class="v" id="go-status">-</span>
+      </div>
+      <div class="result-row">
+        <span class="k">players</span>
+        <span class="v" id="go-players">-</span>
+      </div>
+      <div class="disconnected-banner" id="go-disc-banner">
+        🔌 서버에서 연결을 종료했습니다 (<span id="go-disc-reason">-</span>)
+      </div>
+      <div class="actions">
+        <button class="primary" onclick="closeGameOverModal()">확인</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"
     integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+"
     crossorigin="anonymous"></script>
   <script>
     let socket = null;
     let shakeTimer = null;
+    let userInitiatedDisconnect = false;
+    let gameOverShown = false;
 
     const $ = (id) => document.getElementById(id);
     const logEl = $('log');
@@ -925,10 +1056,47 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
       showErr._t = setTimeout(() => el.style.display = 'none', 5000);
     }
 
+    function showGameOverModal(data) {
+      const winner = data?.winnerId
+        ? (data.winnerId === socket?.id ? `${data.winnerId} (나)` : data.winnerId)
+        : '없음';
+      $('go-winner').textContent = winner;
+      $('go-reason').textContent = data?.reason ?? 'manual';
+      $('go-status').textContent = data?.snapshot?.status ?? '-';
+      const players = data?.snapshot?.players ?? [];
+      $('go-players').textContent = players.length
+        ? players.map(p => `${p.name ?? p.id}: ${Math.round(p.progress)}%`).join(', ')
+        : '-';
+      $('go-disc-banner').classList.remove('show');
+      $('game-over-modal').classList.add('show');
+      gameOverShown = true;
+    }
+
+    function appendDisconnectToModal(reason) {
+      $('go-disc-reason').textContent = reason || 'unknown';
+      $('go-disc-banner').classList.add('show');
+    }
+
+    function showDisconnectOnlyModal(reason) {
+      $('go-winner').textContent = '-';
+      $('go-reason').textContent = '-';
+      $('go-status').textContent = '-';
+      $('go-players').textContent = '-';
+      appendDisconnectToModal(reason);
+      $('game-over-modal').classList.add('show');
+      gameOverShown = true;
+    }
+
+    function closeGameOverModal() {
+      $('game-over-modal').classList.remove('show');
+      gameOverShown = false;
+    }
+
     function connect() {
       if (socket) socket.disconnect();
       const url = $('url').value.trim();
       const room = $('room').value.trim();
+      userInitiatedDisconnect = false;
       try {
         socket = io(url, {
           transports: ['websocket', 'polling'],
@@ -955,6 +1123,15 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
         $('sid').textContent = '-';
         log('SYS', 'disconnect', reason);
         stopShake();
+
+        if (!userInitiatedDisconnect) {
+          if (gameOverShown) {
+            appendDisconnectToModal(reason);
+          } else {
+            showDisconnectOnlyModal(reason);
+          }
+        }
+        userInitiatedDisconnect = false;
       });
 
       socket.on('connect_error', (err) => {
@@ -975,6 +1152,7 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
           if (ev === 'gameOver') {
             setGameStatus('ended');
             stopShake();
+            showGameOverModal(data);
           }
           if (ev === 'stateUpdate' && data && Array.isArray(data.players)) {
             const me = data.players.find(p => p.id === socket.id);
@@ -990,6 +1168,7 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
     }
 
     function disconnect() {
+      userInitiatedDisconnect = true;
       if (socket) socket.disconnect();
     }
 

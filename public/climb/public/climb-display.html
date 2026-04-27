@@ -853,6 +853,8 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
     ];
 
     const playerState = new Map(); // id -> { name, progress }
+    const FINISH_LINE = 100;
+    let gameOverEmitted = false;
 
     function log(dir, ev, payload) {
       const entry = document.createElement('div');
@@ -938,6 +940,7 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
       $('players').innerHTML = '';
       $('track').innerHTML = '';
       $('winner-box').innerHTML = '';
+      gameOverEmitted = false;
       setGameStatus('idle');
     }
 
@@ -969,6 +972,7 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
         case 'gameStarted':
           setGameStatus('running');
           $('winner-box').innerHTML = '';
+          gameOverEmitted = false;
           break;
         case 'stateUpdate': {
           if (data?.status) setGameStatus(data.status);
@@ -976,10 +980,25 @@ socket.emit('disconnect-room', { room: 'room-1' });</code></pre>
             playerState.set(p.id, { name: p.name, progress: p.progress });
           });
           renderTrack();
+
+          // 누군가 finish 선을 넘으면 display가 gameOver를 emit
+          if (!gameOverEmitted && data?.status === 'running') {
+            const winner = (data.players || []).find(
+              (p) => p.progress >= FINISH_LINE,
+            );
+            if (winner) {
+              gameOverEmitted = true;
+              socketEmit('gameOver', {
+                winnerId: winner.id,
+                reason: 'reached_finish',
+              });
+            }
+          }
           break;
         }
         case 'gameOver': {
           setGameStatus('ended');
+          gameOverEmitted = true;
           // snapshot 반영 후 winner 표시
           (data?.snapshot?.players || []).forEach(p => {
             playerState.set(p.id, { name: p.name, progress: p.progress });

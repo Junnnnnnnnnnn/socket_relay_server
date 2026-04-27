@@ -266,6 +266,9 @@
 
     const setStatus = (t) => { statusEl.textContent = t; };
 
+    let userInitiatedDisconnect = false;
+    let gameOverShown = false;
+
     function showModal(title, type) {
       modalTitle.textContent = title;
       modalTitle.className = 'modal-title ' + type;
@@ -321,12 +324,14 @@
       startMotion();
       btnStart.disabled = true;
       btnStop.disabled = false;
+      gameOverShown = false;
     });
 
     socket.on('gameOver', ({ winnerId, reason }) => {
       stopMotion();
       btnStart.disabled = false;
       btnStop.disabled = true;
+      gameOverShown = true;
       if (reason === 'display_disconnected') {
         showModal('디스플레이 연결 해제', 'info');
         return;
@@ -335,7 +340,22 @@
         showModal('Win! 🎉', 'win');
       } else if (winnerId) {
         showModal('Lose 😢', 'lose');
+      } else {
+        showModal('게임 종료', 'info');
       }
+    });
+
+    socket.on('disconnect', (reason) => {
+      stopMotion();
+      btnStart.disabled = true;
+      btnStop.disabled = true;
+      btnJoin.disabled = false;
+      setStatus(`연결 종료 (${reason})`);
+
+      if (!userInitiatedDisconnect && !gameOverShown) {
+        showModal('연결이 종료되었습니다', 'info');
+      }
+      userInitiatedDisconnect = false;
     });
 
     socket.on('error', (e) => {
@@ -393,6 +413,7 @@
 
     btnStop.onclick = () => {
       stopMotion();
+      userInitiatedDisconnect = true;
       socket.disconnect();
       btnStart.disabled = false;
       btnStop.disabled = true;

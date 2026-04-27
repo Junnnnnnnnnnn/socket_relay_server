@@ -212,6 +212,8 @@
     const SOCKET_NAMESPACE = 'https://static-dev.zipshowkorea.com/climb';
     const SOCKET_PATH = '/socket';
     const MAX_PLAYERS = 4;
+    const FINISH_LINE = 100;
+    let gameOverEmitted = false;
 
     const COLORS = ['#ff6b6b', '#4dabf7', '#51cf66', '#ffd43b'];
     const FILL_GRADIENTS = [
@@ -297,14 +299,30 @@
       } else {
         startBtn.disabled = false;
       }
+
+      // 누군가 finish 선을 넘으면 display가 gameOver를 emit
+      if (!gameOverEmitted && state.status === 'running') {
+        const winner = (state.players || []).find(
+          (p) => Number(p.progress) >= FINISH_LINE,
+        );
+        if (winner) {
+          gameOverEmitted = true;
+          socket.emit('gameOver', {
+            winnerId: winner.id,
+            reason: 'reached_finish',
+          });
+        }
+      }
     });
 
     socket.on('gameStarted', () => {
       statusEl.textContent = 'Game running…';
       startBtn.disabled = true;
+      gameOverEmitted = false;
     });
 
     socket.on('gameOver', ({ winnerId, snapshot, reason }) => {
+      gameOverEmitted = true;
       if (reason === 'display_disconnected') {
         statusEl.textContent = 'Display disconnected';
       } else {
