@@ -235,7 +235,7 @@ export class ClimbSocketGateway
 
     // Simple anti-cheat: input clamp & scale
     const clamped = Math.max(0, Math.min(data.delta ?? 0, 20)); // Max 20 per sample
-    const gain = 0.01; // Difficulty adjustment
+    const gain = 0.02; // Difficulty adjustment
     player.progress = Math.max(
       0,
       Math.min(100, player.progress + clamped * gain),
