@@ -231,14 +231,31 @@ export class ClimbSocketGateway
     @ConnectedSocket() client: Socket,
   ) {
     const state = this.findRoomBySocket(client.id);
-    if (!state) return;
+    if (!state) {
+      this.logger.warn(
+        `gameOver received from ${client.id} but no room found — ignored`,
+      );
+      return;
+    }
+
+    const senderRole = state.displayId === client.id ? 'display' : 'controller';
+    const winnerId = data?.winnerId ?? null;
+    const reason = data?.reason ?? 'manual';
+    const winnerName = winnerId
+      ? (state.players.get(winnerId)?.name ?? 'unknown')
+      : null;
+
+    this.logger.log(
+      `gameOver from ${senderRole}(${client.id}) room=${state.code} ` +
+        `winnerId=${winnerId ?? 'null'}${winnerName ? `(${winnerName})` : ''} reason=${reason}`,
+    );
 
     state.status = 'ended';
 
     this.server.to(state.code).emit('gameOver', {
-      winnerId: data?.winnerId ?? null,
+      winnerId,
       snapshot: this.snapshot(state),
-      reason: data?.reason ?? 'manual',
+      reason,
     });
 
     this.disconnectControllers(state);
