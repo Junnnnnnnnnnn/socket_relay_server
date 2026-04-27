@@ -615,7 +615,7 @@ socket.emit('joinRoom', { room: 'room-1', name: 'Junn' });</code></pre>
         <div class="event" id="emit-shake">
           <div class="event-title"><span class="pill emit">EMIT</span><code>shake</code></div>
           <p class="desc">흔들림 샘플. 서버가 <code class="inline">delta</code>를 0~20으로 clamp 후
-            <code class="inline">gain=0.05</code>로 스케일해 progress(%)에 누적.
+            <code class="inline">gain=0.01</code>로 스케일해 progress(%)에 누적.
             100%에 도달하면 <code class="inline">gameOver</code>.</p>
           <pre><code>// payload
 { delta: number }   // 0..20 (서버에서 clamp)

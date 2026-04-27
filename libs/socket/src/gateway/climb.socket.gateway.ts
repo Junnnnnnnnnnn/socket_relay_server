@@ -235,24 +235,16 @@ export class ClimbSocketGateway
 
     // Simple anti-cheat: input clamp & scale
     const clamped = Math.max(0, Math.min(data.delta ?? 0, 20)); // Max 20 per sample
-    const gain = 0.05; // Difficulty adjustment
+    const gain = 0.01; // Difficulty adjustment
     player.progress = Math.max(
       0,
       Math.min(100, player.progress + clamped * gain),
     );
 
     console.log('player ::: ', player);
-    // Victory condition check
-    if (player.progress >= 100) {
-      state.status = 'ended';
-      this.server.to(state.code).emit('gameOver', {
-        winnerId: player.id,
-        snapshot: this.snapshot(state),
-      });
-    } else {
-      // Broadcast progress
-      this.broadcastState(state);
-    }
+
+    // Broadcast progress
+    this.broadcastState(state);
   }
 
   private broadcastState(state: RoomState) {
