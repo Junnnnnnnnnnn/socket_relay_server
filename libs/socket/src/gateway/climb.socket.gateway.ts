@@ -91,7 +91,6 @@ export class ClimbSocketGateway
       if (state.players.has(client.id)) {
         state.players.delete(client.id);
         this.logger.log(`Player ${client.id} left room ${state.code}`);
-        this.broadcastState(state);
 
         // 방의 현재 플레이어 수와 참가자 리스트 브로드캐스트
         const playerCount = state.players.size;
