@@ -74,16 +74,8 @@ export class ClimbSocketGateway
   }
 
   handleDisconnect(client: Socket) {
-    // Iterate through all rooms to clean up (usually only belongs to one room, but this is safer)
     for (const state of rooms.values()) {
       if (state.displayId === client.id) {
-        // If display disconnects, broadcast game over and clean up the room
-        this.server.to(state.code).emit('gameOver', {
-          winnerId: null,
-          snapshot: this.snapshot(state),
-          reason: 'display_disconnected',
-        });
-        this.logger.log(`Display disconnected, closing room ${state.code}`);
         rooms.delete(state.code);
         continue;
       }
