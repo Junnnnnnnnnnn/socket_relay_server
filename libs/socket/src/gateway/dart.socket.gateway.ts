@@ -11,6 +11,13 @@ import {
 import { Server, Socket } from 'socket.io';
 import { SocketService } from '../socket.service';
 
+type RoomStatus = 'pending' | 'play' | 'finish';
+
+interface RoomState {
+  code: string;
+  status: RoomStatus;
+}
+
 interface ClientInfo {
   id: string;
   name: string;
@@ -28,6 +35,7 @@ export class DartSocketGateway
   private readonly logger = new Logger(DartSocketGateway.name);
   private readonly roomClients = new Map<string, Set<string>>();
   private readonly clientInfoMap = new Map<string, ClientInfo>(); // socketId -> ClientInfo
+  private readonly roomStates = new Map<string, RoomState>();
   private readonly MAX_NAME_LENGTH = 32;
   private readonly MAX_ROOM_LENGTH = 64;
   private readonly MAX_PLAYERS_PER_ROOM = 4;
@@ -88,6 +96,7 @@ export class DartSocketGateway
 
     // 방이 가득 찼는지 확인 (이미 이 방에 있는 경우는 제외 — 재연결/이름변경 보호)
     const alreadyInRoom = this.roomClients.get(room)?.has(client.id) ?? false;
+
     if (
       !alreadyInRoom &&
       this.getRoomPlayerCount(room) >= this.MAX_PLAYERS_PER_ROOM
@@ -133,6 +142,9 @@ export class DartSocketGateway
     // 방의 모든 클라이언트에게 업데이트된 인원 수 전송 (count만)
     this.server.to(room).emit('roomPlayerCount', { room, playerCount });
 
+    const state = this.getOrCreateRoomState(room);
+    this.broadcastState(state);
+
     this.logger.log(
       `ClientId: ${client.id} (${name}) joined room: ${room}, current players: ${playerCount}`,
     );
@@ -150,6 +162,7 @@ export class DartSocketGateway
       roomSet.delete(client.id);
       if (roomSet.size === 0) {
         this.roomClients.delete(room);
+        this.roomStates.delete(room);
       }
     }
 
@@ -176,6 +189,25 @@ export class DartSocketGateway
         name: info?.name || 'Unknown',
       };
     });
+  }
+
+  private getOrCreateRoomState(room: string): RoomState {
+    let state = this.roomStates.get(room);
+    if (!state) {
+      state = { code: room, status: 'pending' };
+      this.roomStates.set(room, state);
+    }
+    return state;
+  }
+
+  private findRoomBySocket(socketId: string): RoomState | undefined {
+    const info = this.clientInfoMap.get(socketId);
+    if (!info) return undefined;
+    return this.roomStates.get(info.room);
+  }
+
+  private broadcastState(state: RoomState) {
+    this.server.to(state.code).emit('statusUpdate', state.status);
   }
 
   /**
@@ -207,6 +239,50 @@ export class DartSocketGateway
     );
 
     this.server.in(room).disconnectSockets();
+  }
+
+  @SubscribeMessage('startGame')
+  handleStartGame(@MessageBody() _: any, @ConnectedSocket() client: Socket) {
+    const state = this.findRoomBySocket(client.id);
+    if (!state) return;
+
+    if (this.getRoomPlayerCount(state.code) < 1) {
+      client.emit('error', {
+        code: 'NOT_ENOUGH_PLAYERS',
+        message: 'Not enough players to start',
+      });
+      return;
+    }
+
+    state.status = 'play';
+
+    this.server.to(state.code).emit('gameStarted');
+    this.broadcastState(state);
+  }
+
+  @SubscribeMessage('gameOver')
+  handleGameOver(
+    @MessageBody() data: { winnerId?: string | null; reason?: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const state = this.findRoomBySocket(client.id);
+    if (!state) {
+      this.logger.warn(
+        `gameOver received from ${client.id} but no room found — ignored`,
+      );
+      return;
+    }
+
+    const winnerId = data?.winnerId ?? null;
+    const reason = data?.reason ?? 'manual';
+
+    this.logger.log(
+      `gameOver from ${client.id} room=${state.code} winnerId=${winnerId ?? 'null'} reason=${reason}`,
+    );
+
+    state.status = 'finish';
+
+    this.broadcastState(state);
   }
 
   @SubscribeMessage('throw-dart')
