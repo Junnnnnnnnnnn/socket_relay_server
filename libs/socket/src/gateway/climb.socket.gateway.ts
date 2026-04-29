@@ -257,8 +257,6 @@ export class ClimbSocketGateway
       snapshot: this.snapshot(state),
       reason,
     });
-
-    this.disconnectControllers(state);
   }
 
   @SubscribeMessage('shake')
