@@ -269,8 +269,6 @@ export class ClimbSocketGateway
       Math.min(100, player.progress + clamped * gain),
     );
 
-    console.log('player ::: ', player);
-
     // Broadcast progress
     this.broadcastState(state);
   }
