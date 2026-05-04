@@ -1,535 +1,691 @@
 <!doctype html>
 <html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>Climb Room Test (joinedRoom / roomPlayerCount / roomFull)</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 1400px;
+        margin: 20px auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      h1 {
+        margin: 0 0 10px;
+        color: #222;
+      }
+      .subtitle {
+        color: #666;
+        margin-bottom: 20px;
+        font-size: 14px;
+      }
+      .controls {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      }
+      .controls .row {
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+      }
+      .controls label {
+        display: block;
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 4px;
+      }
+      .controls input {
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        width: 220px;
+      }
+      .controls button {
+        padding: 9px 16px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        background: #4caf50;
+        color: white;
+      }
+      .controls button:hover {
+        background: #43a047;
+      }
+      .controls button.secondary {
+        background: #2196f3;
+      }
+      .controls button.secondary:hover {
+        background: #1976d2;
+      }
+      .controls button.display {
+        background: #9c27b0;
+      }
+      .controls button.display:hover {
+        background: #7b1fa2;
+      }
+      .controls button.danger {
+        background: #f44336;
+      }
+      .controls button.danger:hover {
+        background: #da190b;
+      }
+      .controls button.gameover {
+        background: #ff9800;
+      }
+      .controls button.gameover:hover {
+        background: #f57c00;
+      }
 
-<head>
-  <meta charset="utf-8" />
-  <title>Climb Room Test (joinedRoom / roomPlayerCount / roomFull)</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, sans-serif;
-      max-width: 1400px;
-      margin: 20px auto;
-      padding: 20px;
-      background: #f5f5f5;
-    }
-    h1 { margin: 0 0 10px; color: #222; }
-    .subtitle { color: #666; margin-bottom: 20px; font-size: 14px; }
-    .controls {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    }
-    .controls .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-    .controls label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
-    .controls input {
-      padding: 8px 10px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      font-size: 14px;
-      width: 220px;
-    }
-    .controls button {
-      padding: 9px 16px;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      background: #4CAF50;
-      color: white;
-    }
-    .controls button:hover { background: #43a047; }
-    .controls button.secondary { background: #2196F3; }
-    .controls button.secondary:hover { background: #1976D2; }
-    .controls button.display { background: #9C27B0; }
-    .controls button.display:hover { background: #7B1FA2; }
-    .controls button.danger { background: #f44336; }
-    .controls button.danger:hover { background: #da190b; }
-    .controls button.gameover { background: #FF9800; }
-    .controls button.gameover:hover { background: #F57C00; }
+      .clients {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 16px;
+      }
+      .client {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        border-left: 4px solid #bbb;
+      }
+      .client.connected {
+        border-left-color: #4caf50;
+      }
+      .client.full {
+        border-left-color: #f44336;
+      }
+      .client.display {
+        border-left-color: #9c27b0;
+      }
+      .client h3 {
+        margin: 0 0 10px;
+        font-size: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .role-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        background: #e3f2fd;
+        color: #1565c0;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+      .role-badge.display {
+        background: #f3e5f5;
+        color: #6a1b9a;
+      }
+      .status {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 10px;
+        background: #eee;
+        color: #666;
+        font-weight: normal;
+      }
+      .status.connected {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      .status.disconnected {
+        background: #ffebee;
+        color: #c62828;
+      }
+      .client .info {
+        font-size: 12px;
+        color: #555;
+        background: #fafafa;
+        padding: 8px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+      }
+      .client .info .k {
+        color: #888;
+        display: inline-block;
+        min-width: 80px;
+      }
+      .player-list {
+        background: #f3f7ff;
+        border-radius: 6px;
+        padding: 8px;
+        margin-bottom: 10px;
+        font-size: 12px;
+      }
+      .player-list .title {
+        font-weight: 600;
+        color: #1976d2;
+        margin-bottom: 6px;
+      }
+      .player-list ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .player-list li {
+        padding: 3px 0;
+        border-bottom: 1px dashed #d0d8ea;
+      }
+      .player-list li:last-child {
+        border-bottom: none;
+      }
+      .player-list .empty {
+        color: #aaa;
+        font-style: italic;
+      }
 
-    .clients {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-      gap: 16px;
-    }
-    .client {
-      background: white;
-      border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      border-left: 4px solid #bbb;
-    }
-    .client.connected { border-left-color: #4CAF50; }
-    .client.full { border-left-color: #f44336; }
-    .client.display { border-left-color: #9C27B0; }
-    .client h3 {
-      margin: 0 0 10px;
-      font-size: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-    }
-    .role-badge {
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 10px;
-      background: #E3F2FD;
-      color: #1565C0;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-    .role-badge.display { background: #F3E5F5; color: #6A1B9A; }
-    .status {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 10px;
-      background: #eee;
-      color: #666;
-      font-weight: normal;
-    }
-    .status.connected { background: #E8F5E9; color: #2E7D32; }
-    .status.disconnected { background: #FFEBEE; color: #C62828; }
-    .client .info {
-      font-size: 12px;
-      color: #555;
-      background: #fafafa;
-      padding: 8px;
-      border-radius: 6px;
-      margin-bottom: 10px;
-    }
-    .client .info .k { color: #888; display: inline-block; min-width: 80px; }
-    .player-list {
-      background: #f3f7ff;
-      border-radius: 6px;
-      padding: 8px;
-      margin-bottom: 10px;
-      font-size: 12px;
-    }
-    .player-list .title {
-      font-weight: 600;
-      color: #1976D2;
-      margin-bottom: 6px;
-    }
-    .player-list ul { list-style: none; padding: 0; margin: 0; }
-    .player-list li { padding: 3px 0; border-bottom: 1px dashed #d0d8ea; }
-    .player-list li:last-child { border-bottom: none; }
-    .player-list .empty { color: #aaa; font-style: italic; }
+      .client-actions {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+      .client-actions button {
+        padding: 5px 10px;
+        font-size: 12px;
+        border: 1px solid #ccc;
+        background: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .client-actions button:hover {
+        background: #eee;
+      }
+      .client-actions button.primary {
+        background: #4caf50;
+        color: white;
+        border-color: #4caf50;
+      }
+      .client-actions button.primary:hover {
+        background: #43a047;
+      }
+      .client-actions button.start {
+        background: #ff9800;
+        color: white;
+        border-color: #ff9800;
+      }
+      .client-actions button.start:hover {
+        background: #f57c00;
+      }
+      .client-actions button.shake {
+        background: #03a9f4;
+        color: white;
+        border-color: #03a9f4;
+      }
+      .client-actions button.shake:hover {
+        background: #0288d1;
+      }
+      .client-actions button.danger {
+        background: #f44336;
+        color: white;
+        border-color: #f44336;
+      }
+      .client-actions button.danger:hover {
+        background: #da190b;
+      }
 
-    .client-actions { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-    .client-actions button {
-      padding: 5px 10px;
-      font-size: 12px;
-      border: 1px solid #ccc;
-      background: #fff;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .client-actions button:hover { background: #eee; }
-    .client-actions button.primary { background: #4CAF50; color: white; border-color: #4CAF50; }
-    .client-actions button.primary:hover { background: #43a047; }
-    .client-actions button.start { background: #FF9800; color: white; border-color: #FF9800; }
-    .client-actions button.start:hover { background: #F57C00; }
-    .client-actions button.shake { background: #03A9F4; color: white; border-color: #03A9F4; }
-    .client-actions button.shake:hover { background: #0288D1; }
-    .client-actions button.danger { background: #f44336; color: white; border-color: #f44336; }
-    .client-actions button.danger:hover { background: #da190b; }
+      .log {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        border-radius: 6px;
+        padding: 8px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 11px;
+        height: 240px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .log .entry {
+        margin-bottom: 6px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #2a2a2a;
+      }
+      .log .entry:last-child {
+        border-bottom: none;
+      }
+      .log .header {
+        display: block;
+      }
+      .log .payload {
+        display: block;
+        margin-top: 2px;
+        padding-left: 8px;
+        color: #9cdcfe;
+        font-size: 10.5px;
+      }
+      .log .in {
+        color: #81c784;
+      }
+      .log .out {
+        color: #64b5f6;
+      }
+      .log .err {
+        color: #ef5350;
+      }
+      .log .warn {
+        color: #ffb74d;
+      }
+      .log .time {
+        color: #888;
+      }
 
-    .log {
-      background: #1e1e1e;
-      color: #d4d4d4;
-      border-radius: 6px;
-      padding: 8px;
-      font-family: 'Consolas', 'Monaco', monospace;
-      font-size: 11px;
-      height: 240px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-    .log .entry { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #2a2a2a; }
-    .log .entry:last-child { border-bottom: none; }
-    .log .header { display: block; }
-    .log .payload { display: block; margin-top: 2px; padding-left: 8px; color: #9CDCFE; font-size: 10.5px; }
-    .log .in { color: #81C784; }
-    .log .out { color: #64B5F6; }
-    .log .err { color: #EF5350; }
-    .log .warn { color: #FFB74D; }
-    .log .time { color: #888; }
+      .guide {
+        background: #fff8e1;
+        border-left: 4px solid #ffb300;
+        border-radius: 6px;
+        padding: 12px 14px;
+        margin-bottom: 16px;
+        font-size: 13px;
+        color: #5d4037;
+        line-height: 1.6;
+      }
+      .guide b {
+        color: #e65100;
+      }
+      .guide code {
+        background: rgba(0, 0, 0, 0.06);
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-size: 12px;
+      }
+    </style>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  </head>
+  <body>
+    <h1>Climb Room Test</h1>
+    <div class="subtitle">
+      테스트: <code>roomFull</code> (최대 4명, payload
+      <code>{ room, maxPlayers }</code>, controller만 카운트) ·
+      <code>joinedRoom</code> (참가자 리스트 브로드캐스트) ·
+      <code>roomPlayerCount</code> (count) ·
+      <code>disconnect-room</code> (controller만 강제 종료, display 유지) ·
+      <code>gameOver</code> (controller만 강제 종료, display 유지) ·
+      <b>재-joinRoom 보호</b>(이미 입장한 본인 호출은 정원 체크 제외)
+    </div>
 
-    .guide {
-      background: #FFF8E1;
-      border-left: 4px solid #FFB300;
-      border-radius: 6px;
-      padding: 12px 14px;
-      margin-bottom: 16px;
-      font-size: 13px;
-      color: #5D4037;
-      line-height: 1.6;
-    }
-    .guide b { color: #E65100; }
-    .guide code {
-      background: rgba(0,0,0,0.06);
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-size: 12px;
-    }
-  </style>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-</head>
-<body>
-  <h1>Climb Room Test</h1>
-  <div class="subtitle">
-    테스트: <code>roomFull</code> (최대 4명, payload <code>{ room, maxPlayers }</code>, controller만 카운트) ·
-    <code>joinedRoom</code> (참가자 리스트 브로드캐스트) ·
-    <code>roomPlayerCount</code> (count) ·
-    <code>disconnect-room</code> (controller만 강제 종료, display 유지) ·
-    <code>gameOver</code> (controller만 강제 종료, display 유지) ·
-    <b>재-joinRoom 보호</b>(이미 입장한 본인 호출은 정원 체크 제외)
-  </div>
+    <div class="guide">
+      <b>테스트 시나리오</b><br />
+      ① <b>+ Display</b> → 디스플레이 1개 먼저 연결 (참가자 카운트에 포함되지
+      않음).<br />
+      ② <b>+ 4 Controllers</b> → 같은 방에 컨트롤러 4개 정상 입장 (모두 연결,
+      참가자 리스트 4명).<br />
+      ③ <b>+ 5번째 (full 테스트)</b> → 5번째 컨트롤러만
+      <code>roomFull</code> 이벤트 수신, 빨간 보더 + "ROOM FULL (max 4)" 표시.
+      나머지 4명 + Display 영향 없음.<br />
+      ④ <b>재-joinRoom 보호 테스트</b> → ②에서 이미 입장한 컨트롤러의
+      <code>joinRoom 재전송</code> 버튼 클릭. 정원이 가득 차 있어도 거부되지
+      않고 정상 처리(이름 변경/재연결 케이스 보호).<br />
+      ⑤ <b>룸 controller disconnect</b> → <code>disconnect-room</code> 이벤트
+      emit. 방의 모든 controller만 끊기고 <b>display는 연결 유지</b>.<br />
+      ⑥ <b>gameOver 트리거</b> → <code>gameOver</code> 이벤트 emit
+      (winnerId/reason 포함). 모든 클라이언트가 <code>gameOver</code> 수신 후
+      controller만 끊기고 <b>display는 연결 유지</b>. game status가
+      <code>ended</code>로 표시됨.
+    </div>
 
-  <div class="guide">
-    <b>테스트 시나리오</b><br>
-    ① <b>+ Display</b> → 디스플레이 1개 먼저 연결 (참가자 카운트에 포함되지 않음).<br>
-    ② <b>+ 4 Controllers</b> → 같은 방에 컨트롤러 4개 정상 입장 (모두 연결, 참가자 리스트 4명).<br>
-    ③ <b>+ 5번째 (full 테스트)</b> → 5번째 컨트롤러만 <code>roomFull</code> 이벤트 수신, 빨간 보더 + "ROOM FULL (max 4)" 표시.
-    나머지 4명 + Display 영향 없음.<br>
-    ④ <b>재-joinRoom 보호 테스트</b> → ②에서 이미 입장한 컨트롤러의 <code>joinRoom 재전송</code> 버튼 클릭.
-    정원이 가득 차 있어도 거부되지 않고 정상 처리(이름 변경/재연결 케이스 보호).<br>
-    ⑤ <b>룸 controller disconnect</b> → <code>disconnect-room</code> 이벤트 emit. 방의 모든 controller만 끊기고 <b>display는 연결 유지</b>.<br>
-    ⑥ <b>gameOver 트리거</b> → <code>gameOver</code> 이벤트 emit (winnerId/reason 포함). 모든 클라이언트가 <code>gameOver</code> 수신 후 controller만 끊기고 <b>display는 연결 유지</b>. game status가 <code>ended</code>로 표시됨.
-  </div>
-
-  <div class="controls">
-    <div class="row">
-      <div>
-        <label>Server URL</label>
-        <input id="server" value="http://localhost:3456" />
+    <div class="controls">
+      <div class="row">
+        <div>
+          <label>Server URL</label>
+          <input id="server" value="http://localhost:3457" />
+        </div>
+        <div>
+          <label>Socket path</label>
+          <input id="path" value="/socket.io" />
+        </div>
+        <div>
+          <label>Room</label>
+          <input id="room" value="TEST" />
+        </div>
+        <div>
+          <label>Name prefix (자동 번호)</label>
+          <input id="namePrefix" value="Player" />
+        </div>
+        <div>
+          <button class="display" id="addDisplayBtn">+ Display</button>
+          <button id="addBtn">+ Controller</button>
+          <button class="secondary" id="add4Btn">+ 4 Controllers</button>
+          <button class="secondary" id="add5Btn">+ 5번째 (full 테스트)</button>
+          <button class="gameover" id="gameOverBtn">gameOver 트리거</button>
+          <button class="danger" id="disconnectAllBtn">
+            룸 controller disconnect
+          </button>
+        </div>
       </div>
-      <div>
-        <label>Socket path</label>
-        <input id="path" value="/socket.io" />
-      </div>
-      <div>
-        <label>Room</label>
-        <input id="room" value="TEST" />
-      </div>
-      <div>
-        <label>Name prefix (자동 번호)</label>
-        <input id="namePrefix" value="Player" />
-      </div>
-      <div>
-        <button class="display" id="addDisplayBtn">+ Display</button>
-        <button id="addBtn">+ Controller</button>
-        <button class="secondary" id="add4Btn">+ 4 Controllers</button>
-        <button class="secondary" id="add5Btn">+ 5번째 (full 테스트)</button>
-        <button class="gameover" id="gameOverBtn">gameOver 트리거</button>
-        <button class="danger" id="disconnectAllBtn">룸 controller disconnect</button>
+      <div class="row" style="margin-top: 10px">
+        <span style="color: #888; font-size: 12px">
+          ※ climb은 display가 먼저 연결되어야 startGame 가능. 참가자 카운트는
+          controller만 포함됩니다.
+        </span>
       </div>
     </div>
-    <div class="row" style="margin-top:10px">
-      <span style="color:#888;font-size:12px">
-        ※ climb은 display가 먼저 연결되어야 startGame 가능. 참가자 카운트는 controller만 포함됩니다.
-      </span>
-    </div>
-  </div>
 
-  <div id="clients" class="clients"></div>
+    <div id="clients" class="clients"></div>
 
-  <template id="clientTpl">
-    <div class="client">
-      <h3>
-        <span class="title">Client #N</span>
-        <span class="role-badge">controller</span>
-        <span class="status disconnected" style="margin-left:auto">idle</span>
-      </h3>
-      <div class="info">
-        <div><span class="k">Socket ID:</span><span class="socketId">-</span></div>
-        <div><span class="k">Name:</span><span class="clientName">-</span></div>
-        <div><span class="k">Room:</span><span class="clientRoom">-</span></div>
-        <div><span class="k">Role:</span><span class="clientRole">-</span></div>
-        <div><span class="k">Player count:</span><span class="pcount">-</span></div>
-        <div><span class="k">Game status:</span><span class="gstatus">-</span></div>
+    <template id="clientTpl">
+      <div class="client">
+        <h3>
+          <span class="title">Client #N</span>
+          <span class="role-badge">controller</span>
+          <span class="status disconnected" style="margin-left: auto"
+            >idle</span
+          >
+        </h3>
+        <div class="info">
+          <div>
+            <span class="k">Socket ID:</span><span class="socketId">-</span>
+          </div>
+          <div>
+            <span class="k">Name:</span><span class="clientName">-</span>
+          </div>
+          <div>
+            <span class="k">Room:</span><span class="clientRoom">-</span>
+          </div>
+          <div>
+            <span class="k">Role:</span><span class="clientRole">-</span>
+          </div>
+          <div>
+            <span class="k">Player count:</span><span class="pcount">-</span>
+          </div>
+          <div>
+            <span class="k">Game status:</span><span class="gstatus">-</span>
+          </div>
+        </div>
+        <div class="player-list">
+          <div class="title">방 참가자 (joinedRoom 수신 시 갱신)</div>
+          <ul class="players">
+            <li class="empty">아직 없음</li>
+          </ul>
+        </div>
+        <div class="client-actions">
+          <button class="primary join-btn">joinRoom 재전송</button>
+          <button class="start start-btn">startGame</button>
+          <button class="shake shake-btn">shake +5</button>
+          <button class="danger disc-btn">disconnect</button>
+        </div>
+        <div class="log"></div>
       </div>
-      <div class="player-list">
-        <div class="title">방 참가자 (joinedRoom 수신 시 갱신)</div>
-        <ul class="players"><li class="empty">아직 없음</li></ul>
-      </div>
-      <div class="client-actions">
-        <button class="primary join-btn">joinRoom 재전송</button>
-        <button class="start start-btn">startGame</button>
-        <button class="shake shake-btn">shake +5</button>
-        <button class="danger disc-btn">disconnect</button>
-      </div>
-      <div class="log"></div>
-    </div>
-  </template>
+    </template>
 
-  <script>
-    const serverInput = document.getElementById('server');
-    const pathInput = document.getElementById('path');
-    const roomInput = document.getElementById('room');
-    const nameInput = document.getElementById('namePrefix');
-    const clientsEl = document.getElementById('clients');
-    const tpl = document.getElementById('clientTpl');
-    let counter = 0;
-    const clients = new Map(); // id -> { socket, el, name, room, role }
+    <script>
+      const serverInput = document.getElementById('server');
+      const pathInput = document.getElementById('path');
+      const roomInput = document.getElementById('room');
+      const nameInput = document.getElementById('namePrefix');
+      const clientsEl = document.getElementById('clients');
+      const tpl = document.getElementById('clientTpl');
+      let counter = 0;
+      const clients = new Map(); // id -> { socket, el, name, room, role }
 
-    function now() {
-      return new Date().toLocaleTimeString('ko-KR', { hour12: false });
-    }
-
-    function escapeHtml(s) {
-      return String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-
-    function logTo(el, msg, cls = '', payload) {
-      const row = document.createElement('div');
-      row.className = 'entry';
-      let html = `<span class="header"><span class="time">[${now()}]</span> <span class="${cls}">${escapeHtml(msg)}</span></span>`;
-      if (payload !== undefined) {
-        const json = JSON.stringify(payload, null, 2);
-        html += `<span class="payload">${escapeHtml(json)}</span>`;
-      }
-      row.innerHTML = html;
-      el.appendChild(row);
-      el.scrollTop = el.scrollHeight;
-    }
-
-    function renderPlayers(ul, players) {
-      ul.innerHTML = '';
-      if (!players || players.length === 0) {
-        ul.innerHTML = '<li class="empty">아직 없음</li>';
-        return;
-      }
-      players.forEach((p, i) => {
-        const li = document.createElement('li');
-        li.textContent = `${i + 1}. ${p.name} (${p.socketId.substring(0, 8)}…)`;
-        ul.appendChild(li);
-      });
-    }
-
-    function createClient({ name, room, role }) {
-      const id = ++counter;
-      const node = tpl.content.firstElementChild.cloneNode(true);
-      node.dataset.id = id;
-      node.querySelector('.title').textContent = `Client #${id}`;
-
-      const roleBadge = node.querySelector('.role-badge');
-      roleBadge.textContent = role;
-      if (role === 'display') {
-        roleBadge.classList.add('display');
-        node.classList.add('display');
+      function now() {
+        return new Date().toLocaleTimeString('ko-KR', { hour12: false });
       }
 
-      const statusEl = node.querySelector('.status');
-      const socketIdEl = node.querySelector('.socketId');
-      const nameEl = node.querySelector('.clientName');
-      const roomEl = node.querySelector('.clientRoom');
-      const roleEl = node.querySelector('.clientRole');
-      const pcountEl = node.querySelector('.pcount');
-      const gstatusEl = node.querySelector('.gstatus');
-      const playersUl = node.querySelector('.players');
-      const logEl = node.querySelector('.log');
-      const joinBtn = node.querySelector('.join-btn');
-      const startBtn = node.querySelector('.start-btn');
-      const shakeBtn = node.querySelector('.shake-btn');
-      const discBtn = node.querySelector('.disc-btn');
-
-      nameEl.textContent = name;
-      roomEl.textContent = room;
-      roleEl.textContent = role;
-
-      // display는 joinRoom/shake를 호출하지 않음
-      if (role === 'display') {
-        joinBtn.disabled = true;
-        shakeBtn.disabled = true;
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
       }
 
-      const baseUrl = serverInput.value.trim() || 'http://localhost:3456';
-      const socketPath = pathInput.value.trim() || '/socket.io';
-      const socket = io(`${baseUrl}/climb`, {
-        path: socketPath,
-        query: { room, role },
-        reconnection: false,
-        transports: ['websocket', 'polling'],
-      });
+      function logTo(el, msg, cls = '', payload) {
+        const row = document.createElement('div');
+        row.className = 'entry';
+        let html = `<span class="header"><span class="time">[${now()}]</span> <span class="${cls}">${escapeHtml(msg)}</span></span>`;
+        if (payload !== undefined) {
+          const json = JSON.stringify(payload, null, 2);
+          html += `<span class="payload">${escapeHtml(json)}</span>`;
+        }
+        row.innerHTML = html;
+        el.appendChild(row);
+        el.scrollTop = el.scrollHeight;
+      }
 
-      const state = { socket, el: node, name, room, role };
-      clients.set(id, state);
+      function renderPlayers(ul, players) {
+        ul.innerHTML = '';
+        if (!players || players.length === 0) {
+          ul.innerHTML = '<li class="empty">아직 없음</li>';
+          return;
+        }
+        players.forEach((p, i) => {
+          const li = document.createElement('li');
+          li.textContent = `${i + 1}. ${p.name} (${p.socketId.substring(0, 8)}…)`;
+          ul.appendChild(li);
+        });
+      }
 
-      logTo(logEl, `connect 시도: ${baseUrl}/climb (path=${socketPath}, role=${role})`);
+      function createClient({ name, room, role }) {
+        const id = ++counter;
+        const node = tpl.content.firstElementChild.cloneNode(true);
+        node.dataset.id = id;
+        node.querySelector('.title').textContent = `Client #${id}`;
 
-      // ---- 모든 수신 이벤트를 catch-all로 ----
-      socket.onAny((event, ...args) => {
-        const payload = args.length <= 1 ? args[0] : args;
-        logTo(logEl, `← ${event}`, 'in', payload);
-      });
+        const roleBadge = node.querySelector('.role-badge');
+        roleBadge.textContent = role;
+        if (role === 'display') {
+          roleBadge.classList.add('display');
+          node.classList.add('display');
+        }
 
-      socket.on('connect', () => {
-        socketIdEl.textContent = socket.id;
-        statusEl.textContent = 'connected';
-        statusEl.className = 'status connected';
-        node.classList.add('connected');
-        logTo(logEl, `✅ connected (${socket.id})`, 'in');
+        const statusEl = node.querySelector('.status');
+        const socketIdEl = node.querySelector('.socketId');
+        const nameEl = node.querySelector('.clientName');
+        const roomEl = node.querySelector('.clientRoom');
+        const roleEl = node.querySelector('.clientRole');
+        const pcountEl = node.querySelector('.pcount');
+        const gstatusEl = node.querySelector('.gstatus');
+        const playersUl = node.querySelector('.players');
+        const logEl = node.querySelector('.log');
+        const joinBtn = node.querySelector('.join-btn');
+        const startBtn = node.querySelector('.start-btn');
+        const shakeBtn = node.querySelector('.shake-btn');
+        const discBtn = node.querySelector('.disc-btn');
 
-        // controller만 joinRoom (display는 connect만으로 charge)
-        if (role === 'controller') {
+        nameEl.textContent = name;
+        roomEl.textContent = room;
+        roleEl.textContent = role;
+
+        // display는 joinRoom/shake를 호출하지 않음
+        if (role === 'display') {
+          joinBtn.disabled = true;
+          shakeBtn.disabled = true;
+        }
+
+        const baseUrl = serverInput.value.trim() || 'http://localhost:3457';
+        const socketPath = pathInput.value.trim() || '/socket.io';
+        const socket = io(`${baseUrl}/climb`, {
+          path: socketPath,
+          query: { room, role },
+          reconnection: false,
+          transports: ['websocket', 'polling'],
+        });
+
+        const state = { socket, el: node, name, room, role };
+        clients.set(id, state);
+
+        logTo(
+          logEl,
+          `connect 시도: ${baseUrl}/climb (path=${socketPath}, role=${role})`,
+        );
+
+        // ---- 모든 수신 이벤트를 catch-all로 ----
+        socket.onAny((event, ...args) => {
+          const payload = args.length <= 1 ? args[0] : args;
+          logTo(logEl, `← ${event}`, 'in', payload);
+        });
+
+        socket.on('connect', () => {
+          socketIdEl.textContent = socket.id;
+          statusEl.textContent = 'connected';
+          statusEl.className = 'status connected';
+          node.classList.add('connected');
+          logTo(logEl, `✅ connected (${socket.id})`, 'in');
+
+          // controller만 joinRoom (display는 connect만으로 charge)
+          if (role === 'controller') {
+            const payload = { room, name };
+            socket.emit('joinRoom', payload);
+            logTo(logEl, `→ emit joinRoom`, 'out', payload);
+          }
+        });
+
+        socket.on('connect_error', (err) => {
+          logTo(logEl, `❌ connect_error: ${err.message}`, 'err');
+        });
+
+        socket.on('disconnect', (reason) => {
+          statusEl.textContent = `disconnected (${reason})`;
+          statusEl.className = 'status disconnected';
+          node.classList.remove('connected');
+          logTo(logEl, `🔌 disconnect: ${reason}`, 'warn');
+        });
+
+        // ---- UI 반영용 ----
+        socket.on('roomFull', (data) => {
+          // data = { room, maxPlayers }
+          const max = data?.maxPlayers ?? 4;
+          statusEl.textContent = `ROOM FULL (max ${max})`;
+          statusEl.className = 'status disconnected';
+          node.classList.add('full');
+        });
+
+        socket.on('roomPlayerCount', (data) => {
+          pcountEl.textContent = data.playerCount;
+        });
+
+        socket.on('joinedRoom', (data) => {
+          if (data.playerCount !== undefined)
+            pcountEl.textContent = data.playerCount;
+          renderPlayers(playersUl, data.players || []);
+        });
+
+        socket.on('stateUpdate', (data) => {
+          if (data?.status) gstatusEl.textContent = data.status;
+        });
+
+        socket.on('gameStarted', () => {
+          gstatusEl.textContent = 'running';
+        });
+
+        socket.on('gameOver', (data) => {
+          gstatusEl.textContent = `ended (winner: ${data?.winnerId || 'none'})`;
+        });
+
+        joinBtn.onclick = () => {
           const payload = { room, name };
           socket.emit('joinRoom', payload);
           logTo(logEl, `→ emit joinRoom`, 'out', payload);
+        };
+        startBtn.onclick = () => {
+          socket.emit('startGame');
+          logTo(logEl, `→ emit startGame`, 'out');
+        };
+        shakeBtn.onclick = () => {
+          const payload = { delta: 5 };
+          socket.emit('shake', payload);
+          logTo(logEl, `→ emit shake`, 'out', payload);
+        };
+        discBtn.onclick = () => {
+          socket.disconnect();
+        };
+
+        clientsEl.appendChild(node);
+        return state;
+      }
+
+      function makeController() {
+        const room = (roomInput.value.trim() || 'TEST').toUpperCase();
+        const name = `${nameInput.value.trim() || 'Player'}${counter + 1}`;
+        createClient({ name, room, role: 'controller' });
+      }
+
+      function makeDisplay() {
+        const room = (roomInput.value.trim() || 'TEST').toUpperCase();
+        const name = `Display${counter + 1}`;
+        createClient({ name, room, role: 'display' });
+      }
+
+      document.getElementById('addBtn').onclick = makeController;
+      document.getElementById('addDisplayBtn').onclick = makeDisplay;
+      document.getElementById('add4Btn').onclick = () => {
+        for (let i = 0; i < 4; i++) setTimeout(makeController, i * 200);
+      };
+      document.getElementById('add5Btn').onclick = makeController;
+      document.getElementById('gameOverBtn').onclick = () => {
+        const targetRoom = (roomInput.value.trim() || 'TEST').toUpperCase();
+
+        // display가 game을 종료하는 게 자연스러우므로 display 우선
+        const sameRoom = [...clients.values()].filter(
+          (c) => c.socket.connected && c.room === targetRoom,
+        );
+        const sender =
+          sameRoom.find((c) => c.role === 'display') ?? sameRoom[0];
+
+        const payload = { winnerId: null, reason: 'manual_test' };
+        if (sender) {
+          sender.socket.emit('gameOver', payload);
+          return;
         }
-      });
 
-      socket.on('connect_error', (err) => {
-        logTo(logEl, `❌ connect_error: ${err.message}`, 'err');
-      });
-
-      socket.on('disconnect', (reason) => {
-        statusEl.textContent = `disconnected (${reason})`;
-        statusEl.className = 'status disconnected';
-        node.classList.remove('connected');
-        logTo(logEl, `🔌 disconnect: ${reason}`, 'warn');
-      });
-
-      // ---- UI 반영용 ----
-      socket.on('roomFull', (data) => {
-        // data = { room, maxPlayers }
-        const max = data?.maxPlayers ?? 4;
-        statusEl.textContent = `ROOM FULL (max ${max})`;
-        statusEl.className = 'status disconnected';
-        node.classList.add('full');
-      });
-
-      socket.on('roomPlayerCount', (data) => {
-        pcountEl.textContent = data.playerCount;
-      });
-
-      socket.on('joinedRoom', (data) => {
-        if (data.playerCount !== undefined) pcountEl.textContent = data.playerCount;
-        renderPlayers(playersUl, data.players || []);
-      });
-
-      socket.on('stateUpdate', (data) => {
-        if (data?.status) gstatusEl.textContent = data.status;
-      });
-
-      socket.on('gameStarted', () => {
-        gstatusEl.textContent = 'running';
-      });
-
-      socket.on('gameOver', (data) => {
-        gstatusEl.textContent = `ended (winner: ${data?.winnerId || 'none'})`;
-      });
-
-      joinBtn.onclick = () => {
-        const payload = { room, name };
-        socket.emit('joinRoom', payload);
-        logTo(logEl, `→ emit joinRoom`, 'out', payload);
-      };
-      startBtn.onclick = () => {
-        socket.emit('startGame');
-        logTo(logEl, `→ emit startGame`, 'out');
-      };
-      shakeBtn.onclick = () => {
-        const payload = { delta: 5 };
-        socket.emit('shake', payload);
-        logTo(logEl, `→ emit shake`, 'out', payload);
-      };
-      discBtn.onclick = () => {
-        socket.disconnect();
+        // 활성 소켓이 없으면 임시 controller 소켓으로 emit
+        const baseUrl = serverInput.value.trim() || 'http://localhost:3457';
+        const socketPath = pathInput.value.trim() || '/socket.io';
+        const tmp = io(`${baseUrl}/climb`, {
+          path: socketPath,
+          query: { room: targetRoom, role: 'controller' },
+          reconnection: false,
+          transports: ['websocket', 'polling'],
+        });
+        tmp.on('connect', () => {
+          tmp.emit('joinRoom', { room: targetRoom, name: 'tmp' });
+          setTimeout(() => {
+            tmp.emit('gameOver', payload);
+            setTimeout(() => tmp.disconnect(), 200);
+          }, 100);
+        });
       };
 
-      clientsEl.appendChild(node);
-      return state;
-    }
+      document.getElementById('disconnectAllBtn').onclick = () => {
+        const targetRoom = (roomInput.value.trim() || 'TEST').toUpperCase();
 
-    function makeController() {
-      const room = (roomInput.value.trim() || 'TEST').toUpperCase();
-      const name = `${nameInput.value.trim() || 'Player'}${counter + 1}`;
-      createClient({ name, room, role: 'controller' });
-    }
+        // 서버의 'disconnect-room' 이벤트로 방의 모든 소켓 강제 종료 (신규)
+        const active = [...clients.values()].find(
+          (c) => c.socket.connected && c.room === targetRoom,
+        );
+        if (active) {
+          active.socket.emit('disconnect-room', { room: targetRoom });
+          return;
+        }
 
-    function makeDisplay() {
-      const room = (roomInput.value.trim() || 'TEST').toUpperCase();
-      const name = `Display${counter + 1}`;
-      createClient({ name, room, role: 'display' });
-    }
-
-    document.getElementById('addBtn').onclick = makeController;
-    document.getElementById('addDisplayBtn').onclick = makeDisplay;
-    document.getElementById('add4Btn').onclick = () => {
-      for (let i = 0; i < 4; i++) setTimeout(makeController, i * 200);
-    };
-    document.getElementById('add5Btn').onclick = makeController;
-    document.getElementById('gameOverBtn').onclick = () => {
-      const targetRoom = (roomInput.value.trim() || 'TEST').toUpperCase();
-
-      // display가 game을 종료하는 게 자연스러우므로 display 우선
-      const sameRoom = [...clients.values()].filter(
-        (c) => c.socket.connected && c.room === targetRoom,
-      );
-      const sender =
-        sameRoom.find((c) => c.role === 'display') ?? sameRoom[0];
-
-      const payload = { winnerId: null, reason: 'manual_test' };
-      if (sender) {
-        sender.socket.emit('gameOver', payload);
-        return;
-      }
-
-      // 활성 소켓이 없으면 임시 controller 소켓으로 emit
-      const baseUrl = serverInput.value.trim() || 'http://localhost:3456';
-      const socketPath = pathInput.value.trim() || '/socket.io';
-      const tmp = io(`${baseUrl}/climb`, {
-        path: socketPath,
-        query: { room: targetRoom, role: 'controller' },
-        reconnection: false,
-        transports: ['websocket', 'polling'],
-      });
-      tmp.on('connect', () => {
-        tmp.emit('joinRoom', { room: targetRoom, name: 'tmp' });
-        setTimeout(() => {
-          tmp.emit('gameOver', payload);
+        // 같은 방의 활성 소켓이 없으면 임시 소켓으로 emit
+        // (climb은 connect 시 room 쿼리가 필수 — 없으면 즉시 disconnect됨)
+        const baseUrl = serverInput.value.trim() || 'http://localhost:3457';
+        const socketPath = pathInput.value.trim() || '/socket.io';
+        const tmp = io(`${baseUrl}/climb`, {
+          path: socketPath,
+          query: { room: targetRoom, role: 'controller' },
+          reconnection: false,
+          transports: ['websocket', 'polling'],
+        });
+        tmp.on('connect', () => {
+          tmp.emit('disconnect-room', { room: targetRoom });
           setTimeout(() => tmp.disconnect(), 200);
-        }, 100);
-      });
-    };
-
-    document.getElementById('disconnectAllBtn').onclick = () => {
-      const targetRoom = (roomInput.value.trim() || 'TEST').toUpperCase();
-
-      // 서버의 'disconnect-room' 이벤트로 방의 모든 소켓 강제 종료 (신규)
-      const active = [...clients.values()].find(
-        (c) => c.socket.connected && c.room === targetRoom,
-      );
-      if (active) {
-        active.socket.emit('disconnect-room', { room: targetRoom });
-        return;
-      }
-
-      // 같은 방의 활성 소켓이 없으면 임시 소켓으로 emit
-      // (climb은 connect 시 room 쿼리가 필수 — 없으면 즉시 disconnect됨)
-      const baseUrl = serverInput.value.trim() || 'http://localhost:3456';
-      const socketPath = pathInput.value.trim() || '/socket.io';
-      const tmp = io(`${baseUrl}/climb`, {
-        path: socketPath,
-        query: { room: targetRoom, role: 'controller' },
-        reconnection: false,
-        transports: ['websocket', 'polling'],
-      });
-      tmp.on('connect', () => {
-        tmp.emit('disconnect-room', { room: targetRoom });
-        setTimeout(() => tmp.disconnect(), 200);
-      });
-    };
-  </script>
-</body>
+        });
+      };
+    </script>
+  </body>
 </html>

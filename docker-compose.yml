@@ -4,8 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - 3456:3456
+      - 3457:3457
     environment:
-      - PORT=3456
+      - PORT=3457
     volumes:
       - ./public:/app/public
+    restart: always

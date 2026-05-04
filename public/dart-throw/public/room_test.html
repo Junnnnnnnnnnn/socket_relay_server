@@ -287,7 +287,7 @@
       <div class="row">
         <div>
           <label>Server URL</label>
-          <input id="server" value="http://localhost:3456" />
+          <input id="server" value="http://localhost:3457" />
         </div>
         <div>
           <label>Room</label>
@@ -409,7 +409,7 @@
         nameEl.textContent = name;
         roomEl.textContent = room;
 
-        const url = serverInput.value.trim() || 'http://localhost:3456';
+        const url = serverInput.value.trim() || 'http://localhost:3457';
         const socket = io(`${url}/dart`, {
           query: { room },
           reconnection: false,
@@ -500,7 +500,7 @@
           return;
         }
         // 연결된 클라이언트가 없으면 임시 소켓으로 전송
-        const url = serverInput.value.trim() || 'http://localhost:3456';
+        const url = serverInput.value.trim() || 'http://localhost:3457';
         const tmp = io(`${url}/dart`, {
           reconnection: false,
           transports: ['websocket', 'polling'],
