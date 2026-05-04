@@ -9,3 +9,4 @@ services:
       - PORT=3456
     volumes:
       - ./public:/app/public
+    restart: always
